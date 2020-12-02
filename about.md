@@ -6,15 +6,15 @@ permalink: /about/
 
 I am a DPhil student in Computational Statistics and Machine Learning at the University of Oxford and at the Alan Turing Institute in London. 
 
-My work is on combining deep learning with Bayesian statistics. The resulting class of models, _deep generative models_ enable the application of Bayesian ideas but leveraging the power of deep learning.
+My work is on combining deep learning with Bayesian statistics. The resulting class of models, _deep generative models_ enable us to scale Bayesian approaches to large datasets and complex data like images.
 
 I am interested in three broad areas:
 
 - The robustness of these models, to missing data and to adversarial attack.
 
-- Building highly structured models, that enable us to learn representations that are in some sense simple, and even human-interpretable. 
+- Building highly structured models that enable us to learn representations that are in some sense simple, even human-interpretable. 
 
-- How these models act when scaled up to have large hierarchies of learnt representations.
+- How these models act when scaled up to have deep hierarchies of learnt representations.
 
 ### Publications
 
