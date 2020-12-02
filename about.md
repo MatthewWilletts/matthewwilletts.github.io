@@ -20,7 +20,7 @@ I am interested in three broad areas:
 
 - [_Semi-Unsupervised Learning: Clustering and Classifying using Ultra-Sparse Labels_](https://arxiv.org/abs/1901.08560), 2020, _IEEE Conference on Big Data -- Special Session on Machine Learning for Big Data_, **M Willetts**, S Roberts, C Holmes
 
-- [_Explicit Regularisation in Gaussian Noise Injections_](https://papers.nips.cc/paper/2020/hash/c16a5320fa475530d9583c34fd356ef5-Abstract.html), 2020, _NeurIPS__ , A Camuto, **M Willetts**, U Şimşekli, S Roberts, C Holmes
+- [_Explicit Regularisation in Gaussian Noise Injections_](https://papers.nips.cc/paper/2020/hash/c16a5320fa475530d9583c34fd356ef5-Abstract.html), 2020, _NeurIPS_ , A Camuto, **M Willetts**, U Şimşekli, S Roberts, C Holmes
 
 - [_Disentangling to Cluster: Gaussian Mixture Variational Ladder Autoencoders_](https://arxiv.org/abs/1909.11501), 2020, _NeurIPS Bayesian Deep Learning Workshop_, **M Willetts**, S Roberts, C Holmes
 
