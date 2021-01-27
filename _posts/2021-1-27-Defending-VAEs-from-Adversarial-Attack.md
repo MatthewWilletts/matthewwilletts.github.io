@@ -4,7 +4,7 @@ title: Improving VAEs' Robustness to Adversarial Attacks – Part 1
 ---
 
 
-This is part one of a two part series where I explain in some detail the ideas in my recent ICLR paper `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
+This is part one of a two part series where I explain in some detail the ideas in my [recent ICLR paper](https://arxiv.org/abs/1906.00230) `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
 
 If you are not familiar with Variational Autoencoders, I recommend you start with a review article -- both [Doesch, (2016)](https://arxiv.org/abs/1606.05908) and [Kingma & Welling, (2019)](https://arxiv.org/abs/1906.02691) are great.
 
