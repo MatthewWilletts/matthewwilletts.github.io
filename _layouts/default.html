@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
   <head>
@@ -18,15 +19,25 @@
   <body>
     <div class="wrapper-masthead">
       <div class="container">
-        <header class="masthead clearfix">
+
+
+        <header class="masthead clearfix"style="
+    background: lightblue;
+    padding: 10px;
+">
           <a href="{{ site.baseurl }}/" class="site-avatar"><img src="{{ site.avatar }}" /></a>
 
           <div class="site-info">
-            <h1 class="site-name"><a href="{{ site.baseurl }}/">{{ site.name }}</a></h1>
+            <h1 class="site-name"><a style="
+    text-decoration: none;
+" href="{{ site.baseurl }}/">{{ site.name }}</a></h1>
             <p class="site-description">{{ site.description }}</p>
           </div>
 
-          <nav>
+          <nav style="
+    margin-top: -10px;
+    padding-bottom: 10px;
+">
             <a href="{{ site.baseurl }}/">Blog</a>
             <a href="{{ site.baseurl }}/about">About</a>
           </nav>

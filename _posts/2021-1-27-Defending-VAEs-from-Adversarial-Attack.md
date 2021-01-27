@@ -1,12 +1,12 @@
 ---
 layout: post
-title: Improving VAEs' Robustness to Adversarial Attacks -- Part 1
+title: Improving VAEs' Robustness to Adversarial Attacks – Part 1
 ---
 
 
 This is part one of a two part series where I explain in some detail the ideas in my recent ICLR paper `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
 
-If you are not familiar with Variational Autoencoders, I recommend you start with either of the review articles [Doesch, (2016)](https://arxiv.org/abs/1606.05908) or [Kingma & Welling, (2019)](https://arxiv.org/abs/1906.02691).
+If you are not familiar with Variational Autoencoders, I recommend you start with a review article -- both [Doesch, (2016)](https://arxiv.org/abs/1606.05908) and [Kingma & Welling, (2019)](https://arxiv.org/abs/1906.02691) are great.
 
 ## Adversarial Attacks
 
@@ -264,7 +264,7 @@ The $$\beta$$-VAE's posterior variance saturates, while the $$\beta$$-TCVAE's do
 In the centre and right plots we show the log likelihood and ELBO for both model types as a function of $$\beta$$.
 Clearly the model quality degrades to a lesser degree for the TC-penalised models under increasing $$\beta$$. 
 
-That TC penalisation can be applied without causing as strong a degradation in model quality compared to that found in $$\beta$$-VAEs (as measured by the fidelity of reconstructions and the value of the $$\beta=1$$ ELBO), while still increasing overlap, is the key reason we think people should use it to `robustify' VAEs when needed.
+That TC penalisation can be applied without causing as strong a degradation in model quality compared to that found in $$\beta$$-VAEs (as measured by the fidelity of reconstructions and the value of the $$\beta=1$$ ELBO), while still increasing overlap, is the key reason we propose using it to `robustify' VAEs when needed.
 There is not much point having a robust model if the model is now strongly degraded.
 
 
@@ -280,7 +280,7 @@ We can get a first handle on this by measuring the value reached of the adversar
 
 Higher loss indicates more robustness.
 Note that the loss axis is logarithmic. 
-Shading corresponds to the 95% CI produced by attacking 20 images for each combination of $$d_{\v{z}}=\{4,8, 16,32,64,128\}$$.
+Shading corresponds to the 95% CI produced by attacking 20 images for each combination of $$d_{\v{z}}=\{4,8, 16,32,64,128\}$$ for each value of $$\beta$$.
 Following the attack methods in Gondim-Ribeiro et al., (2018) and Tabacof et al., (2016), we have taken 50 geometrically distributed values of $$\lambda$$ between $$2^{-20}$$ and $$2^{20}$$ (giving $$1000$$ total trials).
 $$\beta > 1$$ clearly induces a much larger loss for the adversary relative to $$\beta = 1$$ for all the datasets we studied.
 
