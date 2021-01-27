@@ -74,6 +74,17 @@ footer {
   text-align: center;
 }
 
+img[src*='#left'] {
+    float: left;
+}
+img[src*='#right'] {
+    float: right;
+}
+img[src*='#center'] {
+    display: block;
+    margin: auto;
+}
+
 .svg-icon {
   width: 40px;
   height: 40px;
