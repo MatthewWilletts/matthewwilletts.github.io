@@ -4,7 +4,7 @@ title: Improving VAEs' Robustness to Adversarial Attacks – Part 1
 ---
 
 
-This is part one of a two part series where I explain in some detail the ideas in my [recent ICLR paper](https://arxiv.org/abs/1906.00230) `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
+This is part one of a two part series where I explain in some detail the ideas in my recent [ICLR paper](https://arxiv.org/abs/1906.00230) `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
 
 If you are not familiar with Variational Autoencoders, I recommend you start with a review article -- both [Doesch, (2016)](https://arxiv.org/abs/1606.05908) and [Kingma & Welling, (2019)](https://arxiv.org/abs/1906.02691) are great.
 
@@ -67,11 +67,13 @@ The encoder's output is often used for downstream tasks, for example text analys
 VAEs are even themselves used to protect classifiers from adversarial attack (Schott et al., 2019; Ghosh et al., 2019)
 
 All this leads to a natural question: can we fool a VAE?
-This will not be quite the same as attacking a classifier -- after all, we are not considering a class label, as VAEs are an example of unsupervised learning.
-And if so, how can we try to ensure that VAEs are robust to adversarial attacks against them?
+This will not be quite the same as attacking a classifier -- after all, we are not considering a class label, as VAEs are unsupervised models.
 As the fundamental mode of operation of a VAE is that of encoding an input datapoint to a low-dimensional latent space then reconstructing it, fooling a VAE means manipulating the input so that it reconstructs a distorted input to a chosen _target image_.
-Attacks of this nature have already been proposed.
-But before we describe them, and then our way to help defend against them, we need just a little bit more on the set-up of VAEs.
+Attacks of this nature have already been proposed and are quite effective.
+
+This leads then to the second question: how can we try to ensure that VAEs are robust to adversarial attacks against them?
+
+But before we describe these attacks, and then our way to help defend against them, we need just a little bit more on the set-up of VAEs.
 
 
 #### Quick Recap of VAEs
@@ -250,7 +252,7 @@ Just to see how things work in low dimensions, we train some models, a vanilla V
 |$$\mathbf{\beta=128}$$|![B-VAE q](/images/seatbelt/swiss_plots/bvae_128.png#center){:height='100px'}|![B-VAE recons](/images/seatbelt/swiss_plots/bvae_128_roll.png#center){:height='100px'}|![B-TCVAE q](/images/seatbelt/swiss_plots/tcvae_128.png#center){:height='100px'}|![B-TCVAE recons](/images/seatbelt/swiss_plots/tcvae_128_roll.png#center){:height='100px'}|
 
 These plots show the aggregate posterior and the reconstructions (the modes of the likelihood conditioned on a sample of each per-datapoint posterior).
-Clearly the amount of overlap increases with $$\beta$$ for both kinds of model, but the $$\beta$$-TCVAEs appear to do this in a more structured way (as we would hope) and, unlike the $$\beta$$-VAE, they not suffer from such catastrophic degradation in model quality for large $$\beta$$ -- for large $$\beta$$ the $$\beta$$-VAE's reconstructions have collpased to a line.
+Clearly the amount of overlap increases with $$\beta$$ for both kinds of model, but the $$\beta$$-TCVAEs appear to do this in a more structured way (as we would hope) and, unlike the $$\beta$$-VAE, they not suffer from such catastrophic degradation in model quality for large $$\beta$$ -- for large $$\beta$$ the $$\beta$$-VAE's reconstructions have collapsed to a line.
 
 Going from toy to real data, we measure this effect quantitiatively for models trained on CelebA.
 
