@@ -4,14 +4,15 @@ title: Improving VAEs' Robustness to Adversarial Attacks – Part 1
 ---
 
 
-This is part one of a two part series where I explain in some detail the ideas in my recent [ICLR paper](https://arxiv.org/abs/1906.00230) `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
+This is part one of a two part series where I explain in some detail the ideas in my upcoming [ICLR 2021 paper](https://arxiv.org/abs/1906.00230) `Improving VAEs' Robustness to Adversarial Attacks', work done with my friends and colleagues at the University of Oxford and The Alan Turing Institute.
 
 If you are not familiar with Variational Autoencoders, I recommend you start with a review article -- both [Doesch, (2016)](https://arxiv.org/abs/1606.05908) and [Kingma & Welling, (2019)](https://arxiv.org/abs/1906.02691) are great.
 
 ## Adversarial Attacks
 
 First, some background on adversarial attacks.
-What are they are why do they matter?
+What are they and why do they matter?
+
 Machine Learning algorithms are being rolled out to perform ever more automated decision-making at scale.
 To those with ulterior motives, manipulating the decisions made by these algorithms might be very appealing -- by hoodwinking these systems you could trick them into giving you the prediction or decision that you desire, not that which the model would normally give.
 Adversarial attacks are exactly these attempts, to make a model do what an adversarial agent wants, _not_ what the model would do if unmolested.
