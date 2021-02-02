@@ -15,7 +15,7 @@ What are they and why do they matter?
 
 Machine Learning algorithms are being rolled out to perform ever more automated decision-making at scale.
 To those with ulterior motives, manipulating the decisions made by these algorithms might be very appealing -- by hoodwinking these systems you could trick them into giving you the prediction or decision that you desire, not that which the model would normally give.
-Adversarial attacks are exactly these attempts, to make a model do what an adversarial agent wants, _not_ what the model would do if unmolested.
+Adversarial attacks are exactly these attempts, to make a model _do what an adversarial agent wants_ rather than what the model would do if unmolested.
 $$\renewcommand{\vector}[1]{\boldsymbol{\mathbf{#1}}}$$
 $$\renewcommand{\v}{\vector}$$
 $$\newcommand\vv[1]{\vec{\v{#1}}}$$
@@ -26,7 +26,7 @@ $$\newcommand\argmin{\mathrm{arg \,min}}$$
 
 It turns out you can fool neural network classifiers quite easily, with very small distortions that are almost imperceptible to the human eye.
 Szegedy et al., (2013) showed that adding a well-chosen, small-magnitude, distortion to an input image can make a deep learning classifier give the wrong predicted label for the image.
-More than that, the adversary can fool the classifier into labelling the image to their _chosen_ class with very high confidence.
+More than that, the adversary can fool the classifier into assigning to the image their _chosen_ class label with very high confidence.
 This research direction continues at pace, studying how best to attack neural networks, why they are vulnerable, and how they can be defended.
 
 |  Neural Network Classifiers under attack |
@@ -37,11 +37,11 @@ This research direction continues at pace, studying how best to attack neural ne
 |Reproduced from _Szegedy et al., (2013)_|
 
 Recall that deep learning classifiers generally output predictions via a _logit_ representation -- the unnormalised log probabilties of the predicted class label.
-The networks actual prediction is thus the class with maximum probability, so the prediction is index of the entry in the vector of logits that has the largest value.
+The network's actual prediction is thus the class with maximum probability, so the prediction is index of the entry in the vector of logits that has the largest value.
 Its confidence will be greater the larger the differece is between that largest value and the rest.
 So, to fool a classifier into outputing the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the target class.
 
-The most standard attacks on deep learning models assume _white box_ access -- the adversary has access to the models architecture and parameters.
+The most standard attacks on deep learning models assume _white box_ access -- the adversary has access to the model's architecture and parameters.
 This means that the distortion can be found by the adversary by simple optimisation -- find the distortion that maximally boosts the chosen logit output, while also trying to keep the distortion's magnitude relatively small (either by penalising it to a chosen degree or constraining it to fall within some range).
 
 ## Adversarial Attacks on Deep Generative Models
@@ -57,7 +57,7 @@ Variational Autoencoders (VAEs) (Kingma & Welling, 2014; Rezende et al., 2014) a
 VAEs are most commonly applied to image data.
 Other than a few toy experiments we will be concerned with images too.
 
-As dicussed in Doesch, (2016) and Kingma & Welling, (2019), VAEs are _latent variable models_: data is modelled as having been generated from a (small) number of latent (i.e., unobserved) highly explanatory quantities that between them neatly encapsulate the important facts about a given datapoint.
+Further, VAEs are _latent variable models_: data is modelled as having been generated from a (small) number of latent (i.e., unobserved) highly explanatory quantities that between them neatly encapsulate the important facts about a given datapoint.
 These models are useful as they enable us to explain, to compress, our datapoints using their inferred latent representatations, and also as they enable us to generate realistic `synthetic data'.
 
 VAEs are made of two halfs: first an _encoder_ that maps input data to a distribution over latent variables and second a _decoder_ that maps settings of the latent variables to a conditional distribution over data-space.
