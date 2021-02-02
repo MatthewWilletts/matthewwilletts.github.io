@@ -36,7 +36,7 @@ This research direction continues at pace, studying how best to attack neural ne
 |The images on the left and right recieve completely different classifications, the rightmost column are all confidently classified as ‘Ostrich’.|
 |Reproduced from _Szegedy et al., (2013)_|
 
-Recall that deep learning classifiers generally output predictions via a _logit_ representation -- the unnormalised log probabilties of the predicted class label.
+Recall that deep learning classifiers generally output predictions via a _logit_ representation -- the unnormalised log probabilities of the predicted class label.
 The network's actual prediction is thus the class with maximum probability, so the prediction is index of the entry in the vector of logits that has the largest value.
 Its confidence will be greater the larger the differece is between that largest value and the rest.
 So, to fool a classifier into outputing the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the target class.
