@@ -36,13 +36,13 @@ This research direction continues at pace, studying how best to attack neural ne
 |The images on the left and right recieve completely different classifications, the rightmost column are all confidently classified as ‘Ostrich’.|
 |Reproduced from _Szegedy et al., (2013)_|
 
-Recall that deep learning classifiers generally output predictions via a _logit_ representation -- the unnormalised log probabilities of the predicted class label.
-The network's actual prediction is thus the class with maximum probability, so the prediction is index of the entry in the vector of logits that has the largest value.
+Recall that deep learning classifiers generally output predictions via a logit representation -- the unnormalised log probabilities of the possible class labels.
+The network’s prediction is then chosen to be the class with maximum probability: that is, the index of the entry in the vector of logits that has the largest value.
 Its confidence will be greater the larger the differece is between that largest value and the rest.
-So, to fool a classifier into outputing the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the target class.
+So, to fool a classifier into outputing the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the adversary's chosen target class.
 
 The most standard attacks on deep learning models assume _white box_ access -- the adversary has access to the model's architecture and parameters.
-This means that the distortion can be found by the adversary by simple optimisation -- find the distortion that maximally boosts the chosen logit output, while also trying to keep the distortion's magnitude relatively small (either by penalising it to a chosen degree or constraining it to fall within some range).
+This means that the distortion can be found by the adversary by simple optimisation -- find the distortion that maximally boosts the chosen logit output, while also being of relatively small magnitude (either by penalising the distortion's magnitude to a chosen degree or constraining it to fall within some range).
 
 ## Adversarial Attacks on Deep Generative Models
 
@@ -83,7 +83,7 @@ To ground the rest of this post, let's choose some notation and go into a little
 
 We have a dataset $$\mathcal{D}=\{\v{x}_i\}_{i=1,...,N}$$, each datapoint $$\v x \in \mathcal{X}=\mathbb{R}^{d_x}$$.
 We model each datapoint as having been generated from a latent variable $$\v z \in \mathcal{Z}=\mathbb{R}^{d_z}$$, with $$d_z \ll d_x$$.
-A VAE's encoder provides us with each datapoint's approximate posterior $$q_\phi(\v z \mid \v x)$$ -- we can apply our neural network encoder to a given datapoint $$\v x$$ and get the statistical parameters for its posterior.
+A VAE's encoder provides us with each datapoint's approximate posterior $$q_\phi(\v z \mid \v x)$$ -- we can apply our neural network encoder to a given datapoint $$\v x$$ and get the statistical parameters for its (approximate) posterior.
 The standard choice in VAEs is $$q_\phi(\v z \mid \v x)=\mathcal{N}(\v z \mid \v{\mu}=\v{\mu}_\phi(\v x),\v{\sigma}=\v{\sigma}_\phi(\v x))$$, where $$\v{\mu}_\phi(\cdot)$$ and $$\v{\sigma}_\phi(\cdot)$$ are neural networks that return the mean and standard deviation respectively (and we are imposing diagonal covariance for the per-datapoint approximate posterior).
 The likelihood is $$p_\theta(\v x \mid \v z)$$.
 Again, for standard VAEs with continuous data, a common choice is $$p_\theta(\v x \mid \v z)=\mathcal{N}(\v x \mid \v{\mu}=\v{\mu}_\theta(\v z),\v{\sigma}=\v{\sigma}_\mathcal{X})$$ where $$\v{\mu}_\theta(\cdot)$$ is the neural network that returns the mean, i.e. the decoder, and $$\v{\sigma}_\mathcal{X}$$ is a chosen, fixed, hyperparameter.
@@ -99,13 +99,13 @@ This optimisation is commonly done using minibatches of data, which provides an 
 #### Attacking VAEs via the Latent Space
 
 Now, manipulating an image to fool a classifier means tricking the model into reducing one output (the true label's logit value) and increasing another one (the target label's logit value).
-For a VAE, we are trying to change ALL the pixels (for colour images, RGB sub-pixels) of the image to take the particular values they take in the target image.
+For a VAE, we are trying to make it output a chosen target image, so we are trying to change ALL the output pixels (for colour images, RGB sub-pixels) of the image to take the particular values they take in the target image.
 MNIST has 784 greyscale pixels.
 32 by 32 pixel colour images have 3072 subpixels.
 So this is a lot of values to manipulate -- as one might expect the most effective attack methods developed so far for VAEs attempt to sidestep this problem.
 
-Remember that the latent space is of much lower dimensionality that the data itself, which makes the latent space sound like a potentially promising avenue of attack.
-Instead of directly trying to tune the output of the model, the reconstruction, to be close to the chosen target, the adversary can instead try to match in the latent space.
+Remember that the latent space is of much lower dimensionality than the data space itself, which makes the latent space sound like a potentially promising avenue of attack.
+Instead of directly trying to tune the output of the model, the reconstruction, to be close to the chosen target, the adversary can instead try to match _in the latent space_.
 
 Reconstructions are done taking samples from a datapoint's latent representation.
 If the attacked (i.e. distorted) datapoint gives rise to the same latent representation as the target image, then the two reconstructions will be the same (up to the noise of the sampling procedure) and the attack has been successful.
@@ -118,7 +118,7 @@ In Gondim-Ribeiro et al., (2018) and Tabacof et al., (2016), an effective way of
 $$\v{d} = \argmin_{\v{d}^{\prime}} \left[\KL\left( q_\phi(\v z \mid \v x + \v{d}^{\prime} ) \mid\mid q_\phi(\v z \mid \v{x}^t) \right) + \lambda \mid\mid \v{d}^{\prime} \mid\mid_2 \right]$$
 
 where we have added an $$L_2$$ penalty on the distortion, weighted by $$\lambda$$, to encourage lower-magnitude attacks.
-After all, the trivial attack $$\v{x}^d=\v{x} + \v{d}=\v{x}^t$$ would exactly match latent representations, but doesn't correspond to _fooling_ the model -- so we want $$\v d $$ to be small.
+After all, the trivial attack $$d=\v{x}^t - \v{x}$$ would exactly match latent representations, but doesn't correspond to _fooling_ the model -- we want $$\v d $$ to be a small shift to a nearby point that reconstructs as required.
 
 This method works -- VAEs can be fooled by attacks constructed this way.
 
@@ -126,7 +126,7 @@ This method works -- VAEs can be fooled by attacks constructed this way.
 |:-:|:-:|:-:|
 |![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_original.png#center){:height='300px'}|![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_vae.png#center){:class="img-responsive" height='300px'}|![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_target.png#center){:class="img-responsive" height='300px'}|
 |Original inputs |Original Recon. - Adv. Input - Adv. Recon. - Target Recon.|Target Images|
-||Here the adversary is trying to get find a distortion to the left column images so they reconstruct via the latent representations of the target, so their recontructions are similar.||
+||Here the adversary is trying to find a distortion to the left column images so they reconstruct via the latent representations of the target, so their recontructions are similar.||
 ||Reproduced from _Gondim-Ribeiro et al., (2018)_||
 
 #### Why can this latent attack be done?
@@ -142,6 +142,7 @@ In training such a model we are not explicitly demanding that nearby points in t
 For sufficiently powerful and flexible neural networks there is no particular reason why nearby embedded points should decode to look much like each other.
 For inputs not in the training set, and for points in the latent space that are not embedding points, the properties of the model are pretty free-form -- there hasn't been a direct constraint on what the model should do when faced with them.
 The mappings can be intrinsically non-smooth: small changes in input can lead to large changes in latent representation, and small changes in latent representation can lead to large changes in reconstruction.
+(I.e. they can have large Lipschitz constants.)
 Any structure that does come about will be from the inductive biases of the neural networks used.
 
 This limiting case of a lookup table is also exactly what we get from a VAE with vanishing posterior noise.
@@ -218,12 +219,11 @@ So, we can upweight the total correlation of the aggregate posterior, then, as a
 Unlike upweighting $$\KL \left( q_\phi(\v z \mid \v{x}) \mid\mid p(\v z)\right)$$ as in a $$\beta$$-VAE, upweighting this constraint applied to the aggregate posterior does not in itself impose a particular length scale, nor any particular shape.
 At the risk of stating the obvious, example of distributions with zero total correlation include: an aggregate posterior that is a product of uniform distributions, one that is a product of standard Laplace distributions, one that is a product of standard Gaussian distributions, one that is a product of Gaussian distributions with scalar standard deviation $$\sigma$$, and one that is a product of some mix of these options.
 
-(Perhaps this makes it obvious why this divergance is one of the fundamental training objectives in Independent Components Analysis (Everson & Roberts, 2001) where we want to learn statistically-independent latent representations, and in the context of VAEs this idea was first put to use with the aim of finding clean latent representations where each axis describes one factor of variation of the data.)
+[Perhaps this makes it obvious why this divergance is one of the fundamental training objectives in Independent Components Analysis (Everson & Roberts, 2001) where we want to learn statistically-independent latent representations, and in the context of VAEs this idea was first put to use with the aim of finding clean latent representations where each axis describes one factor of variation of the data.]
 
-By asking for a mutually independent aggregate posterior we are asking for a folding symmetry.
-That if we ‘fold over’ the aggregate posterior along any of the axes in the latent space, the posterior matches itself when laid back down.
-Any (off-axis) holes in the aggegate posterior violate this, so the model is rewarded for ‘filling in’ the aggegate posterior at those places.
-(The mirror of this is true for any (off-axis) peaks in the aggregate posterior -- the model is rewarded for smoothing them out.)
+By asking for a mutually independent aggregate posterior we are asking for a kind of symmetry.
+Any off-axis and 'unmatched' holes in the aggegate posterior violate the required symmetry, so the model is rewarded for ‘filling in’ the aggegate posterior at those places.
+(The mirror of this is true for off-axis and unmatched peaks in the aggregate posterior -- the model is rewarded for smoothing them out.)
 
 If we penalise the total correlation of the aggregate posterior in a VAE we get a $$\beta$$-TCVAE (Chen et al., 2018).
 Interestingly this total correlation term can be revealed to be already present in the standard VAE ELBO's $$\KL$$ term.
@@ -274,7 +274,7 @@ There is not much point having a robust model if the model is now strongly degra
 ## Adversarial Attacks on $$\beta$$-TCVAEs
 
 Well, as you might expect, the adversary has a harder time finding useful pathologies in the latent structures of $$\beta$$-TCVAE than in vanilla VAEs.
-We can get a first handle on this by measuring the value reached of the adversaries attack objective, as a function of $$\beta$$.
+We can get a first handle on this by measuring the value reached of the adversaries attack loss, as a function of $$\beta$$.
 
 ||Adversarial loss for $$\beta$$-TCVAEs for various datasets||
 |:-:|:-:|:-:|
@@ -284,8 +284,11 @@ We can get a first handle on this by measuring the value reached of the adversar
 Higher loss indicates more robustness.
 Note that the loss axis is logarithmic. 
 Shading corresponds to the 95% CI produced by attacking 20 images for each combination of $$d_{\v{z}}=\{4,8, 16,32,64,128\}$$ for each value of $$\beta$$.
-Following the attack methods in Gondim-Ribeiro et al., (2018) and Tabacof et al., (2016), we have taken 50 geometrically distributed values of $$\lambda$$ between $$2^{-20}$$ and $$2^{20}$$ (giving $$1000$$ total trials).
+Following the attack methods in Gondim-Ribeiro et al., (2018) and Tabacof et al., (2016), we have taken 50 geometrically distributed values of $$\lambda$$ (the $$L_2$$ penalisation factor) between $$2^{-20}$$ and $$2^{20}$$ (giving $$1000$$ total trials).
 $$\beta > 1$$ clearly induces a much larger loss for the adversary relative to $$\beta = 1$$ for all the datasets we studied.
+
+[Why does the attack objective decrease somewhat for large $$\beta$$?
+We think this is probably in part due to the degradation in the underlying model, albeit less that we would have had it we had just upweighted $$\KL(q_\phi(\v z \mid \v x\mid\mid p(\v z))$$.]
 
 This increased robustness also holds for other attacks: both for attacking the VAE via its output (trying directly to manipulate the reconstruction to be like the target) and also for a novel attack we proposed based on the 2-Wasserstein distance.
 
