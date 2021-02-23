@@ -8,16 +8,18 @@ This post gives an overview of the ideas in my upcoming [AISTATS 2021 paper](htt
 
 
 One branch of ML research aims to build models that learn descriptions of data that are _'disentangled'_.
-We want the model to pull-apart input data, commonly images, into the separate and clearly meaningful factors that explain it, that cogently and cleanly summarise it, just from the input data, the images, themselves -- no external additional source of information.
+We want the model to pull-apart input data, commonly images, into the separate and clearly meaningful factors that explain it, ie that cogently and cleanly summarise it.
+We want to do this just from looking at the input data, the images themselves -- so with no external additional source of information.
 
-Commonly to obtain disentangled representations we look to find a set of descriptive factors that are in a technical sense _independent_ of each other (though there are other aproaches out there too).
-An example that helps us get a handle on this idea would learning the 'disentangled' representations for a stack of photos of peoples' faces.
-We can describe a face via a set of 'atomic' facts: perhaps some given photo is of a _'smiling'_ _'young'_ _'man'_ _'with red hair'_ _'wearing sunglasses'_, _against a green background_.
-It is reasonable to expect that _wearing sunglasses_ is pretty independent from _having red hair_, as (probably) is being _young_ [^1] and so on.
+Commonly, to obtain disentangled representations we look to find a set of descriptive factors that are in a technical sense _independent_ of each other (though there are other approaches out there too).
+An example that helps us get a handle on this idea would be learning 'disentangled' representations for a stack of photos of peoples' faces.
+We can describe a face via a set of 'atomic' facts.
+Perhaps some given photo is of a: _'smiling'_ _'young'_ _'man'_ _'with red hair'_ _'wearing sunglasses'_, _'against a green background'_.
+It is reasonable to expect that _'wearing sunglasses'_ is pretty independent from _'having red hair'_, as (probably) is being _'young'_ and so on down the list[^1].
 
 By specifiying a model that tries to find these independent, simple, compressed, descriptions of data, the hope is that the individual learnt factors each correspond to separate and interpretable aspects of the data.
 
-An approach that was popular for this problem, $$\beta$$--TCVAEs (Chen et al., 2018) and related models, where in training the the generative model for our data we add a independence-between-learnt-representations term as an extra penalisation term, has turned out to be highly dependent on careful tuning of the process -- in other words you have to be pretty lucky for it to work (Locatello et al., 2019; Rolinek et al., 2019).
+An approach that was popular for this problem, $$\beta$$--TCVAEs (Chen et al., 2018) and related models, where we train generative model for our data with an extra independence-between-learnt-representations term penalisation term, has turned out to be highly dependent on careful tuning of the process -- in other words you have to be pretty lucky for it to work (Locatello et al., 2019; Rolinek et al., 2019).
 See [my post on robustness in VAEs](https://matthewwilletts.github.io/Defending-VAEs-from-Adversarial-Attack/) for (much) more discussion of these methods and what they can _actually_ be useful for. 
 
 Our paper gives a new way to obtain _statistically independent_ latent representations of high-dimensional data like images, by bringing together some new ideas in ML with both ideas from random projections and the classical method of _indendependent components analysis_.
