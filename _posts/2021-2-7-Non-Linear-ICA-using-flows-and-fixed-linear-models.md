@@ -4,7 +4,7 @@ title: Learning Independent Representations using Flows & <i>Fixed</i> Linear Mo
 ---
 
 
-This post gives an overview of the ideas in my upcoming [AISTATS 2021 paper](https://arxiv.org/abs/2002.07766) `Learning Bijective Feature Maps for Linear ICA', work done with my friends and colleagues at the University of Oxford, UCL, and The Alan Turing Institute.
+This post gives an overview of the ideas in my [AISTATS 2021 paper](https://arxiv.org/abs/2002.07766) `Learning Bijective Feature Maps for Linear ICA', work done with my friends and colleagues at the University of Oxford, UCL, and The Alan Turing Institute.
 
 
 One branch of ML research aims to build models that learn descriptions of data that are _'disentangled'_.

@@ -2,7 +2,7 @@
 layout: post
 title: Explicit Regularisation in GNIs
 ---
-My recent [Neurips paper](https://arxiv.org/abs/2007.07368), written with my friends and colleagues at the University of Oxford, studies the often used and yet poorly understood method of adding Gaussian noise to data and neural network activations. 
+My 2020 [NeurIPS paper](https://arxiv.org/abs/2007.07368), written with my friends and colleagues at the University of Oxford, studies the often used and yet poorly understood method of adding Gaussian noise to data and neural network activations. 
 
 These Gaussian noise injections (GNIs) have an effect in the Fourier domain, which we illustrate in the image below. Each coloured dot represents a neuron's activations. We add GNIs, represented as circles, to each layer's activations bar the output layer. GNIs induce a network for which each layer learns a progressively lower frequency function, represented as a sinusoid matching in colour to its corresponding layer. 
 
