@@ -17,7 +17,7 @@ We can describe a face via a set of 'atomic' facts.
 Perhaps some given photo is of a: _'smiling'_ _'young'_ _'man'_ _'with red hair'_ _'wearing sunglasses'_, _'against a green background'_.
 It is reasonable to expect that _'wearing sunglasses'_ is pretty independent from _'having red hair'_, as (probably) is being _'young'_ and so on down the list[^1].
 
-By specifiying a model that tries to find these independent, simple, compressed, descriptions of data, the hope is that the individual learnt factors each correspond to separate and interpretable aspects of the data.
+By specifying a model that tries to find these independent, simple, compressed, descriptions of data, the hope is that the individual learnt factors each correspond to separate and interpretable aspects of the data.
 
 An approach that was popular for this problem, $$\beta$$--TCVAEs (Chen et al., 2018) and related models, where we train a generative model for our data while penalising the independence between learnt representations, has turned out to be highly dependent on careful tuning of the process.
 In other words, you have to be pretty lucky for it to work (Locatello et al., 2019; Rolinek et al., 2019).
@@ -34,7 +34,7 @@ Before we get to all that, a brief skim over how we can attack this problem (of 
 It turns out that often linear methods are enough, and being linear they have all sorts of pleasant properties.
 This linear approach to the problem will be a key sub-module in our full approach.
 
-While Principle Components Analsis (PCA) is the blockbuster algorithm for discovering latent structure in data using linear algebra, we are interested in its sister method, the often-overlooked but arguably much cooler method _Independent Components Analysis_ (ICA).
+While Principle Components Analysis (PCA) is the blockbuster algorithm for discovering latent structure in data using linear algebra, we are interested in its sister method, the often-overlooked but arguably much cooler method _Independent Components Analysis_ (ICA).
 $$\renewcommand{\vector}[1]{\boldsymbol{\mathbf{#1}}}$$
 $$\renewcommand{\v}{\vector}$$
 $$\newcommand\vv[1]{\vec{\v{#1}}}$$
@@ -46,9 +46,9 @@ $$\newcommand\argmin{\mathrm{arg \,min}}$$
 
 In ICA we want to find latent factors that explain the data, but unlike in PCA we are going to require that our discovered latent variables are statistically independent, instead of merely just explanatory of the variance in the data.
 
-The classic applied problem that ICA solves is _blind source separation_: there are some sources of audio, say, that are all making sounds on top of each other, a group of musicians playing intruments in an band, for example.
+The classic applied problem that ICA solves is _blind source separation_: there are some sources of audio, say, that are all making sounds on top of each other, a group of musicians playing instruments in an band, for example.
 We have laid out a bunch of microphones randomly all around the room so we end up with a set of simultaneously-made audio recordings.
-We want to _reverse_ the mixing process, and obtain separate recordings of each pure source, i.e. one for each intrument.
+We want to _reverse_ the mixing process, and obtain separate recordings of each pure source, i.e. one for each instrument.
 We want to _unmix_ our data.
 
 Say we have $$d_x$$ microphones, so we have $$d_x$$ recordings of the room.
@@ -66,10 +66,10 @@ We can randomly shuffle the order that our $$N$$ datapoints appear and nothing w
 In order words, our approach works for independent and identically distributed (iid) data -- and it turns out we can view these momentary snippets of audio recordings as a set of iid observations for the purpose of this model -- so $$i$$ can be viewed as just an index over datapoints.
 
 We then make a (hopefully reasonable) modelling choice, the claim, that, taken overall, there is no dependency between different instruments being played together or apart within any particular time-slice across our recordings.
-To continue with the musical setting of this problem, we are saying our data is a recording of the freest-possible jazz improv -- whether or not any instrument is being played at any particular moment is independent of what other intruments are being played.
+To continue with the musical setting of this problem, we are saying our data is a recording of the freest-possible jazz improv -- whether or not any instrument is being played at any particular moment is independent of what other instruments are being played.
 We will denote the pure slices of waveform for the instruments as $$s_{ki}$$, $$k\in\{1,...,d_s\}$$, $$i\in\{1,...,N\}$$.
-$$k$$ indexes over the $$d_s$$ different intruments ($$d_s\leq d_x$$) and $$i$$ indexes over time (or a matched shuffling of it).
-It is $$\v{S}$$, the whole matrix of the latent (ie, unobserved) instrument waveforms that we want to infer.
+$$k$$ indexes over the $$d_s$$ different instruments ($$d_s\leq d_x$$) and $$i$$ indexes over time (or a matched shuffling of it).
+It is $$\v{S}$$, the whole matrix of the latent (ie, unobserved) instrument wave-forms that we want to infer.
 
 Then we are going to make another modelling assumption, that the process by which the audio sources were _mixed_ by the natural environment and then recorded at each microphone was _instantaneous, linear, and constant over time_.
 Instantaneous means we won't worry about different instruments having different lags for different microphones.
@@ -79,11 +79,11 @@ Thus the recorded signal can be written:
 
 $$x_{j,i} = a_{j,1} s_{1,i} + a_{j,2} s_{2,i}  + ... + a_{j,d_{x}} s_{d_{x},i}$$
 
-where $$a_{jk}$$ iare the components of our mixing matrix.
+where $$a_{jk}$$ are the components of our mixing matrix.
 So each microphone has its own associated constant mixing vector.
 Dropping the $$i$$ subscript, we can say
 $$\v{x} = \v{A}\v{s}$$
-where $$\v{x}\in \mathbb{R}^{d_x}$$ and $$\v{s}\in \mathbb{R}^{d_s}$$ are vectors holding the multitrack recordings and instrument-latents, respectively, at a moment in time, and again $$\v{A}$$ is our _mixing matrix_.
+where $$\v{x}\in \mathbb{R}^{d_x}$$ and $$\v{s}\in \mathbb{R}^{d_s}$$ are vectors holding the multi-track recordings and instrument-latents, respectively, at a moment in time, and again $$\v{A}$$ is our _mixing matrix_.
 Overall we can say that all $$N$$ slices of our recording are the result of a linear mapping of this type:
 
 $$\v{X} = \v{AS} \label{eq:block_gen}$$
@@ -96,7 +96,7 @@ There are a whole bunch of ways to proceed further within this problem within th
 
 Part of what makes ICA somewhat confusing to study is that one can be solving essentially the same problem, inverting a mixing process like this, using very different looking mathematical tools.
 
-The most obvious approach perhaps is to specify that we wish to learn a mapping, an unmixing, that results in a maximumly-independent latent representation of our data.
+The most obvious approach perhaps is to specify that we wish to learn a mapping, an unmixing, that results in a maximally-independent latent representation of our data.
 A multivariate random variable is statistically independent if its probability distribution is equal to the product of its marginals.
 As discussed in my post on [VAE robustness](https://matthewwilletts.github.io/Defending-VAEs-from-Adversarial-Attack/), we can measure how close-to-mutually-independent a multivariate distribution is by seeing how well approximated it is by a product of its marginal distributions.
 One way to capture this is the _total correlation_ (Watanabe, 1960), the $$\KL$$ between these two entities:
@@ -111,7 +111,7 @@ A powerful approach that is based on this is FastICA.
 |  Blind Source Separation using FastICA |
 |:-:|
 |![BSS](/images/ica/sphx_glr_plot_ica_blind_source_separation_001.png#center){:height='400px'}
-|Here $$d_x=d_s=3$$, so we have recordings by three 'microphones' (top panel) that are linearly-mixed versions of three 'instruments' (second panel) which are the latents we wish to infer. ICA unmixing (third panel) does achieve this, while PCA analysis (bottom panel) does not. Note that the ICA-output unmixing is only accurate up to scalings and flips of the true sources -- all are of shrunken magnitude, and the sawtooth component has been flipped.|
+|Here $$d_x=d_s=3$$, so we have recordings by three 'microphones' (top panel) that are linearly-mixed versions of three 'instruments' (second panel) which are the latents we wish to infer. ICA unmixing (third panel) does achieve this, while PCA analysis (bottom panel) does not. Note that the ICA-output unmixing is only accurate up to scalings and flips of the true sources -- all are of shrunken magnitude, and the saw-tooth component has been flipped.|
 |Reproduced from [_scikit-learn_](https://scikit-learn.org/stable/auto_examples/decomposition/plot_ica_blind_source_separation.html)|
 
 But, despite its success, that is not quite the way we will proceed.
@@ -120,7 +120,7 @@ This method naturally allows us to extend our approach: we can choose (up to cer
 
 ## Probabilistic Linear Independent Components Analysis
 
-Here we will take a probabilistic view of linear ICA, specifiying a probabilistic model for our data $$\v x$$ with parameters we will try to learn, and trying to perform inference on the unknown latent variables $$\v s$$. 
+Here we will take a probabilistic view of linear ICA, specifying a probabilistic model for our data $$\v x$$ with parameters we will try to learn, and trying to perform inference on the unknown latent variables $$\v s$$. 
 Within that model we will try to find an appropriate unmixing matrix.
 
 So, here we need to specify a probabilistic generative model that contains linear mixing of latents to produce data, $$\v{x} = \v{As}$$, at its core, and one that imposes statistical independence between latents.
@@ -197,7 +197,7 @@ $$p(\v x) = p(\v z) \left\lvert \mathrm{det} \frac{\partial f^{-1}}{\partial \v 
 
 where $$f$$ is a bijection from $$\mathcal{Z}\rightarrow\mathcal{X}$$.
 In essence under this model the generative process is that our data was made by sampling a latent variable $$\v z$$ and mapping it through a function $$f$$, and as the function is invertible by construction we can perform inference by simply applying $$f^{-1}$$ to our data.
-It is essential that $$f$$ be richly-parameretised, to give it the necessary power and flexibility to map between latents and data.
+It is essential that $$f$$ be richly-parameterised, to give it the necessary power and flexibility to map between latents and data.
 Clearly this is a generalisation of square ICA to non-linear mixings.
 
 If $$f$$ has a tractable Jacobian we can train this model by pure maximum likelihood on our data.
@@ -219,7 +219,7 @@ p(\v{x}) = p(\v{z}_K)\prod_{i=0}^{K}\left\lvert\mathrm{det}\frac{\partial f_{i}^
 where $$\v{z_{i+1}}$$ is the variable resulting from the transformation $$f_{i}(\v{z}_{i})$$, $$p(\v{z}_K)$$ defines a density on the $$K^{\mathrm{th}}$$, and the bottom most variable is our data ($$\v{z}_0 = \v{x}$$).
 
 The first paper to bring these ideas back to the mainstream in modern ML was NICE: Non-linear Independent Components Estimation (Dinh et al., 2015).
-The exact method used in that paper for building the invertible 'building blocks' of the model has now been superceded -- check the paper out, though, if you are interested.
+The exact method used in that paper for building the invertible 'building blocks' of the model has now been superseded -- check the paper out, though, if you are interested.
 For us a key take-away is that this is a _variety_ of non-linear ICA; the hint is in the name.
 It is not, however, quite what we want.
 
@@ -280,13 +280,13 @@ $$\begin{align}
 \label{eq:total_var_objective}
 \end{align}$$
 
-As such our model is akin to a flow model, but with an additional latent variable $$\v{s}$$; the base distribution $$p(\v{z})$$ of the flow is defined through marginalizing out the linear mixing of the sources.
+As such our model is akin to a flow model, but with an additional latent variable $$\v{s}$$; the base distribution $$p(\v{z})$$ of the flow is defined through marginalising out the linear mixing of the sources.
 
 For this method to work you might think you have to train the flow part of the model and the linear-ICA model that sits atop it at the same time.
 And, to an extent, that is true -- we want the flow to learn to output good $$\v z$$ representations that are easy for the linear-ICA model to act on.
 
 There are problems, however, with training two models on top of each other.
-For example, in GANs it is well known the discriminator is often much faster to train than the generator, so some hyperoptimisation or grid search is often needed to find some learning procedure that provides both stable training and good models.
+For example, in GANs it is well known the discriminator is often much faster to train than the generator, so some hyper-optimisation or grid search is often needed to find some learning procedure that provides both stable training and good models.
 Similarly, here we are training a large, powerful flow model that has many millions of parameters, alongside a relatively weak linear ICA model.
 We want training to be stable and effective, and we want to avoid adding extra design choices like 'having a different learning rate for the linear ICA part of the model' or 'doing $$n$$ update steps of the flow for each single update of the linear ICA model', or whatever.
 
@@ -354,12 +354,12 @@ This won't suit us -- after all we want our method to be data-agnostic so we can
 (Of course in the linear case you just have to do this once, simply for your observed dataset, so doing SVD isn't that big a deal.
 For us, however, we are acting on the output of the flow.
 So the equivalent of the 'data matrix' from the perspective of our linear model is our whole dataset fed through the current instance of the flow [$$\v Z=f^{-1}_\theta(\v X)$$] which changes after every gradient update to $$\theta$$.
-So if we were to embark on an SVD-whitening approach here, we would have to perform SVD after every update, and backprogagate through the procedure as well.
+So if we were to embark on an SVD-whitening approach here, we would have to perform SVD after every update, and backpropagate through the procedure as well.
 The instability and overhead associated with this are exactly the kind of thing we are trying to avoid -- hence having a fixed unmixing matrix.)
 
 There is a neat way to achieve approximate whitening in a way that doesn't depend on the data at all.
 This is possible using _sketching_, also known (more informatively) as 'random projections'.
-Remarkably, if we sample the elements of a matrix iid from certain (simple) univariate distributions, then the resulting matrix is an approximate whitening matrix -- see the full paper for theory on this.
+Remarkably, if we sample the elements of a matrix iid from certain (simple) uni-variate distributions, then the resulting matrix is an approximate whitening matrix -- see the full paper for theory on this.
 
 A particularly simple sketching matrix is that of Achlioptas (2003), where each entry is $$\pm1$$ with equal probability -- and multiplied by an overall scaling to preserve distances in the projected space.
 
@@ -371,7 +371,7 @@ First, we can check how well this does on a problem that breaks Linear ICA.
 We will stick with dSprites, but instead of having the latent sources modulate the _intensity_ of sprites we can use 2 latents to modulate the $$x, y$$ position of a sprite in the field of view.
 The position of the sprite is generated by sampling $$x$$ and $$y$$ each uniformly over the image and then inserting it -- so $$x,y$$ position, or a rotation thereof, are the true, underlying latent variables that explain this data.
 
-And of course this is fundamentally an _affine_ mixing procedure, not linear -- so linear ICA is not an approprate model.
+And of course this is fundamentally an _affine_ mixing procedure, not linear -- so linear ICA is not an appropriate model.
 
 We train both VAEs and Bijectas with $$\v z \in \mathbb{R}^2$$, both with priors appropriate for performing ICA.
 
@@ -384,7 +384,7 @@ Clearly Bijecta has learnt the appropriate representation -- traversing the valu
 
 We can also apply this model to standard machine learning datasets.
 We experiment on CelebA, and benchmark again against disentangling VAEs, as we might hope that these methods work here.
-So in addition to a VAE with Laplace priors, we also train $$\beta$$-TCVAEs -- during training the vanilla ELBO has added to it an upweighted total correlation term for the aggregate posterior.
+So in addition to a VAE with Laplace priors, we also train $$\beta$$-TCVAEs -- during training the vanilla ELBO has added to it an up-weighted total correlation term for the aggregate posterior.
 
 We measure the total correlation of the resulting aggregate posteriors -- after all mutual independence between latent representations is a necessary requirement for a successful non-linear ICA algorithm.
 All models were trained with 32 dimensional latent variables, and all VAEs use the
@@ -418,7 +418,7 @@ This shows that Bijecta is computing representations that are easy to compress w
 Overall, we think this is a fun approach, pairing powerful flows with (partially) fixed linear models.
 [Check out the full paper](https://arxiv.org/abs/2002.07766) for more experiments and for the more technical aspects of the idea.
 
-[^1]: Admittedly this is an appoximation -- maybe _wearing sunglasses_, being _young_ and _smiling_ are in fact interdependent, but hopefully the correspondance is weak. If wearing sunglasses and smiling, say, really did strongly tend to go together in some way, then a model of this type _would_ learn to lump them together as a single _wearing sunglasses while smiling_ variable.
+[^1]: Admittedly this is an approximation -- maybe _wearing sunglasses_, being _young_ and _smiling_ are in fact interdependent, but hopefully the correspondence is weak. If wearing sunglasses and smiling, say, really did strongly tend to go together in some way, then a model of this type _would_ learn to lump them together as a single _wearing sunglasses while smiling_ variable.
 
 
 #### References

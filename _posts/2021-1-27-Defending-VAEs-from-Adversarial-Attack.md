@@ -31,15 +31,15 @@ This research direction continues at pace, studying how best to attack neural ne
 
 |  Neural Network Classifiers under attack |
 |:-:|
-|![Classifer Attack](/images/seatbelt/attack_plots/classifier_attacks/negative1.png#center){:class="img-responsive"}
+|![Classifier Attack](/images/seatbelt/attack_plots/classifier_attacks/negative1.png#center){:class="img-responsive"}
 [Left] Original inputs [Middle] Distortion [Right] Distorted Inputs|
-|The images on the left and right recieve completely different classifications, the rightmost column are all confidently classified as ‘Ostrich’.|
+|The images on the left and right receive completely different classifications, the rightmost column are all confidently classified as ‘Ostrich’.|
 |Reproduced from _Szegedy et al., (2013)_|
 
-Recall that deep learning classifiers generally output predictions via a logit representation -- the unnormalised log probabilities of the possible class labels.
+Recall that deep learning classifiers generally output predictions via a logit representation -- the un-normalised log probabilities of the possible class labels.
 The network’s prediction is then chosen to be the class with maximum probability: that is, the index of the entry in the vector of logits that has the largest value.
-Its confidence will be greater the larger the differece is between that largest value and the rest.
-So, to fool a classifier into outputing the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the adversary's chosen target class.
+Its confidence will be greater the larger the difference is between that largest value and the rest.
+So, to fool a classifier into outputting the adversary's chosen prediction, the name of the game is diminishing the logit value of the true class and increasing the logit value of the adversary's chosen target class.
 
 The most standard attacks on deep learning models assume _white box_ access -- the adversary has access to the model's architecture and parameters.
 This means that the distortion can be found by the adversary by simple optimisation -- find the distortion that maximally boosts the chosen logit output, while also being of relatively small magnitude (either by penalising the distortion's magnitude to a chosen degree or constraining it to fall within some range).
@@ -58,11 +58,11 @@ VAEs are most commonly applied to image data.
 Other than a few toy experiments we will be concerned with images too.
 
 Further, VAEs are _latent variable models_: data is modelled as having been generated from a (small) number of latent (i.e., unobserved) highly explanatory quantities that between them neatly encapsulate the important facts about a given datapoint.
-These models are useful as they enable us to explain, to compress, our datapoints using their inferred latent representatations, and also as they enable us to generate realistic `synthetic data'.
+These models are useful as they enable us to explain, to compress, our datapoints using their inferred latent representations, and also as they enable us to generate realistic `synthetic data'.
 
-VAEs are made of two halfs: first an _encoder_ that maps input data to a distribution over latent variables and second a _decoder_ that maps settings of the latent variables to a conditional distribution over data-space.
-As the number of latent variables is commonly much smaller than the dimensionality of the data, taking a datapoint through the model -- encoding and decoding it -- means we are `bottlenecking' our data through the latent space.
-Roughly speaking, this bottlenecking means that we are asking our model to learn a parsimonious set of representations that preserves the information in the original input data as best it can.
+VAEs are made of two halves: first an _encoder_ that maps input data to a distribution over latent variables and second a _decoder_ that maps settings of the latent variables to a conditional distribution over data-space.
+As the number of latent variables is commonly much smaller than the dimensionality of the data, taking a datapoint through the model -- encoding and decoding it -- means we are `bottle-necking' our data through the latent space.
+Roughly speaking, this bottle-necking means that we are asking our model to learn a parsimonious set of representations that preserves the information in the original input data as best it can.
 
 The encoder's output is often used for downstream tasks, for example text analysis (Xu et al., 2017), for modelling molecules in drug discovery (Kusner et al., 2017), for image compression (Theis et al., 2017; Townsend et al., 2019), and as the perceptual part of a reinforcement learning system (Ha & Schmidhuber, 2018; Higgins et al., 2017b).
 VAEs are even themselves used to protect classifiers from adversarial attack (Schott et al., 2019; Ghosh et al., 2019)
@@ -109,7 +109,7 @@ Instead of directly trying to tune the output of the model, the reconstruction, 
 
 Reconstructions are done taking samples from a datapoint's latent representation.
 If the attacked (i.e. distorted) datapoint gives rise to the same latent representation as the target image, then the two reconstructions will be the same (up to the noise of the sampling procedure) and the attack has been successful.
-So there has a been a small shift in the nature of the attack -- in truth we are aiming for the attacked point to reconstruct to the _reconstuction_ of the target image.
+So there has a been a small shift in the nature of the attack -- in truth we are aiming for the attacked point to reconstruct to the _reconstruction_ of the target image.
 
 So, how to go about it?
 The adversary wants to find some (ideally small magnitude) distortion $$\v d$$ to add to the initial input $$\v x$$ such that the distorted input $$\v{x}^d = \v x + \v d$$ will reconstruct to be close to the chosen target $$\v{x}^t$$, up to the fidelity of the model, **but we want to find the attack using the low dimensional latent representations**.
@@ -126,7 +126,7 @@ This method works -- VAEs can be fooled by attacks constructed this way.
 |:-:|:-:|:-:|
 |![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_original.png#center){:height='300px'}|![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_vae.png#center){:class="img-responsive" height='300px'}|![VAE Latent Attack](/images/seatbelt/attack_plots/celeba_target.png#center){:class="img-responsive" height='300px'}|
 |Original inputs |Original Recon. - Adv. Input - Adv. Recon. - Target Recon.|Target Images|
-||Here the adversary is trying to find a distortion to the left column images so they reconstruct via the latent representations of the target, so their recontructions are similar.||
+||Here the adversary is trying to find a distortion to the left column images so they reconstruct via the latent representations of the target, so their reconstructions are similar.||
 ||Reproduced from _Gondim-Ribeiro et al., (2018)_||
 
 #### Why can this latent attack be done?
@@ -136,7 +136,7 @@ Well, they work because different input points can have very similar posteriors.
 Ok, so why does that happen?
 
 Let's start by thinking about what happens when we attack a standard deep auto-encoder, rather that a VAE.
-That means reconstructions are made entirely deterministically: we map a data point to its hidden, bottlenecked, representation from just a forward pass through a neural network, and then we pass that determinisitic value through the decoder to get our reconstruction.
+That means reconstructions are made entirely deterministically: we map a data point to its hidden, bottle-necked, representation from just a forward pass through a neural network, and then we pass that deterministic value through the decoder to get our reconstruction.
 In training such a model we are not explicitly demanding that nearby points in the hidden space decode to similar points in data space -- it can do perfectly well learning a lookup-table.
 
 For sufficiently powerful and flexible neural networks there is no particular reason why nearby embedded points should decode to look much like each other.
@@ -172,14 +172,14 @@ How much the different components in this mixture _overlap_ is the key geometric
 But how best to do this?
 One could do this by controlling and constraining the neural implementation of the underlying networks in the model.
 Instead, here we are going to do this by upweighting various penalisation terms in the training objective, that have the effect of rewarding models that have increased overlap.
-After all, if we think insufficient `overlap' is the relevant concept here, then it makes sense to develop methods of defense that aim to increase it.
+After all, if we think insufficient `overlap' is the relevant concept here, then it makes sense to develop methods of defence that aim to increase it.
 Even within this general approach, there are different ways one could do this.
 
 
 #### Tuning the noise in VAEs
 
 All methods to obtain increased overlap that add extra regularisation to the training objective can be expected to reduce model performance, as measured by the value reached by the un-regularised ELBO after training.
-But different methods will have different effects on the model, so have different tradeoffs associated with them.
+But different methods will have different effects on the model, so have different trade-offs associated with them.
 
 The methods we discuss here were outlined first in the literature as ways of obtaining `disentangled' representations -- representations that are in some sense one-for-one with the important aspects of variation that exist in the training data.
 For photos of simple objects, cubes and spheres of various sizes and colours against a white background, say, a disentangled model would hopefully learn latent representations that had one axis in the latent space corresponding to shape, one to size, a few for position in space, some for rotations in space, and perhaps a small number for colour, saturation and lighting.
@@ -206,12 +206,12 @@ In part this comes naturally from the fact that this penalisation is per-datapoi
 
 $$\mathbf{\beta}\textbf{-TCVAEs}$$:
 
-Instead we can try to improve the overlap in the latent space in a way that itself depends on the aggegrate posterior -- after all the property we are trying to obtain is a global property of the model, so it makes sense to give the model access to its own global properties during training.
+Instead we can try to improve the overlap in the latent space in a way that itself depends on the aggregate posterior -- after all the property we are trying to obtain is a global property of the model, so it makes sense to give the model access to its own global properties during training.
 That means that the per-datapoint posteriors would be able to interact with each other through the training objective directly, improving the ability of the model to coordinate how the aggregate posterior is laid out.
 
 We are trying to increase the symmetry of the latent space -- a smooth, gap-less aggregate posterior is highly symmetric.
 One form of symmetry we can have in multivariate probability distributions is statistical independence -- that a distribution is equal to the product of its marginals.
-The discepancy between a distribution and the product of its marginals can be captured by the _total correlation_ (Watanabe, 1960), the $$\KL$$ between these two entities:
+The discrepancy between a distribution and the product of its marginals can be captured by the _total correlation_ (Watanabe, 1960), the $$\KL$$ between these two entities:
 $$ \mathrm{TC}(p(\v{a})) = \KL\left(p(\v a) \mid\mid \prod_{j=1}^{d} p(a_j) \right)$$
 where $$d$$ is the dimensionality of the variable at hand.
 So, we can upweight the total correlation of the aggregate posterior, then, as a way to induce model robustness.
@@ -219,10 +219,10 @@ So, we can upweight the total correlation of the aggregate posterior, then, as a
 Unlike upweighting $$\KL \left( q_\phi(\v z \mid \v{x}) \mid\mid p(\v z)\right)$$ as in a $$\beta$$-VAE, upweighting this constraint applied to the aggregate posterior does not in itself impose a particular length scale, nor any particular shape.
 At the risk of stating the obvious, example of distributions with zero total correlation include: an aggregate posterior that is a product of uniform distributions, one that is a product of standard Laplace distributions, one that is a product of standard Gaussian distributions, one that is a product of Gaussian distributions with scalar standard deviation $$\sigma$$, and one that is a product of some mix of these options.
 
-[Perhaps this makes it obvious why this divergance is one of the fundamental training objectives in Independent Components Analysis (Everson & Roberts, 2001) where we want to learn statistically-independent latent representations, and in the context of VAEs this idea was first put to use with the aim of finding clean latent representations where each axis describes one factor of variation of the data.]
+[Perhaps this makes it obvious why this divergence is one of the fundamental training objectives in Independent Components Analysis (Everson & Roberts, 2001) where we want to learn statistically-independent latent representations, and in the context of VAEs this idea was first put to use with the aim of finding clean latent representations where each axis describes one factor of variation of the data.]
 
 By asking for a mutually independent aggregate posterior we are asking for a kind of symmetry.
-Any off-axis and 'unmatched' holes in the aggegate posterior violate the required symmetry, so the model is rewarded for ‘filling in’ the aggegate posterior at those places.
+Any off-axis and 'unmatched' holes in the aggregate posterior violate the required symmetry, so the model is rewarded for ‘filling in’ the aggregate posterior at those places.
 (The mirror of this is true for off-axis and unmatched peaks in the aggregate posterior -- the model is rewarded for smoothing them out.)
 
 If we penalise the total correlation of the aggregate posterior in a VAE we get a $$\beta$$-TCVAE (Chen et al., 2018).
@@ -255,7 +255,7 @@ Just to see how things work in low dimensions, we train some models, a vanilla V
 These plots show the aggregate posterior and the reconstructions (the modes of the likelihood conditioned on a sample of each per-datapoint posterior).
 Clearly the amount of overlap increases with $$\beta$$ for both kinds of model, but the $$\beta$$-TCVAEs appear to do this in a more structured way (as we would hope) and, unlike the $$\beta$$-VAE, they not suffer from such catastrophic degradation in model quality for large $$\beta$$ -- for large $$\beta$$ the $$\beta$$-VAE's reconstructions have collapsed to a line.
 
-Going from toy to real data, we measure this effect quantitiatively for models trained on CelebA.
+Going from toy to real data, we measure this effect quantitatively for models trained on CelebA.
 
 ||Effect of regularisation on overlap and model quality on $$\beta$$-VAEs and $$\beta$$-TCVAEs||
 |:-:|:-:|:-:|
@@ -288,12 +288,12 @@ Following the attack methods in Gondim-Ribeiro et al., (2018) and Tabacof et al.
 $$\beta > 1$$ clearly induces a much larger loss for the adversary relative to $$\beta = 1$$ for all the datasets we studied.
 
 [Why does the attack objective decrease somewhat for large $$\beta$$?
-We think this is probably in part due to the degradation in the underlying model, albeit less that we would have had it we had just upweighted $$\KL(q_\phi(\v z \mid \v x\mid\mid p(\v z))$$.]
+We think this is probably in part due to the degradation in the underlying model, albeit less that we would have had it we had just up-weighted $$\KL(q_\phi(\v z \mid \v x\mid\mid p(\v z))$$.]
 
 This increased robustness also holds for other attacks: both for attacking the VAE via its output (trying directly to manipulate the reconstruction to be like the target) and also for a novel attack we proposed based on the 2-Wasserstein distance.
 
 This is all very promising.
-It's neat that we can re-purpose methods first proposed for a totally differnet purpose to reliably enhance the robustness of these models.
+It's neat that we can re-purpose methods first proposed for a totally different purpose to reliably enhance the robustness of these models.
 But, we can do better than this.
 If we take these ideas and apply them to hierarchical VAEs -- VAEs with layers of latent variables -- we can obtain VAEs that are more robust still to adversarial attack, and also have an even better robustness vs. model quality tradeoff than $$\beta$$-TCVAEs.
 But for that, we need to look to Part 2...
