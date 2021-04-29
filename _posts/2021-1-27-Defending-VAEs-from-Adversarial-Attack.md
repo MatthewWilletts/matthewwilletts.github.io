@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Improving VAEs' Robustness to Adversarial Attacks – Part 1
+title: Improving VAEs' Robustness to Adversarial Attacks – Part 1/2
 ---
 
 
@@ -20,6 +20,7 @@ $$\renewcommand{\vector}[1]{\boldsymbol{\mathbf{#1}}}$$
 $$\renewcommand{\v}{\vector}$$
 $$\newcommand\vv[1]{\vec{\v{#1}}}$$
 $$\newcommand\KL{\mathrm{KL}}$$
+$$\newcommand\TC{\mathrm{TC}}$$
 $$\newcommand\ELBO{\mathcal{L}}$$
 $$\newcommand\expect{\mathbb{E}}$$
 $$\newcommand\argmin{\mathrm{arg \,min}}$$
@@ -265,9 +266,9 @@ Going from toy to real data, we measure this effect quantitatively for models tr
 The left plot shows a KDE of the norm of the encoder standard deviation for a VAE, a $$\beta$$-VAE and a $$\beta$$-TCVAE each trained on CelebA, $$\beta=10$$.
 The $$\beta$$-VAE's posterior variance saturates, while the $$\beta$$-TCVAE's does not, and as such is able to induce more overlap.
 In the centre and right plots we show the log likelihood and ELBO for both model types as a function of $$\beta$$.
-Clearly the model quality degrades to a lesser degree for the TC-penalised models under increasing $$\beta$$. 
+Clearly the model quality degrades to a lesser degree for the $$\TC$$-penalised models under increasing $$\beta$$. 
 
-That TC penalisation can be applied without causing as strong a degradation in model quality compared to that found in $$\beta$$-VAEs (as measured by the fidelity of reconstructions and the value of the $$\beta=1$$ ELBO), while still increasing overlap, is the key reason we propose using it to `robustify' VAEs when needed.
+That $$\TC$$ penalisation can be applied without causing as strong a degradation in model quality compared to that found in $$\beta$$-VAEs (as measured by the fidelity of reconstructions and the value of the $$\beta=1$$ ELBO), while still increasing overlap, is the key reason we propose using it to `robustify' VAEs when needed.
 There is not much point having a robust model if the model is now strongly degraded.
 
 
