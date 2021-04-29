@@ -51,13 +51,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --body-color: #fff;
-    --body-bg: var(--dark-blue);
+    --body-color: var(--gray-300);
+    --body-bg: var(--gray-800);
 
     --heading-color: #fff;
 
-    --link-color: #fff;
-    --link-hover-color: var(--yellow-mustard);
+    --link-color: var(--blue-300);
+    --link-hover-color: var(--blue-400);
 
     --border-color: rgba(255,255,255,.15);
 
