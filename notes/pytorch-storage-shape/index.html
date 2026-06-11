@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyTorch: Storage, Shape, and Axis-Moving · Matthew Willetts</title>
+  <meta name="description" content="Machine learning researcher & engineer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <article class="post note">
+      <p class="note-kicker"><a href="/notes/">Notes</a></p>
+      <h1>PyTorch: Storage, Shape, and Axis-Moving</h1>
+      <p class="note-meta">
+        Matthew Willetts, with assistance from Codex and Claude
+        <span class="sep">·</span>v0.3
+        <span class="sep">·</span>June 2026
+      </p>
+      
+        <p class="note-links">
+          <a href="/docs/notes/pytorch-storage-shape.pdf">PDF</a>
+          
+        </p>
+      
+      <p>A reference for the operations that change a tensor’s shape or axis order: what copies, what doesn’t, and the precise semantics of each.</p>
+
+<h2 id="the-three-things-that-define-a-tensor">The three things that define a tensor</h2>
+
+<p>A <code class="language-plaintext highlighter-rouge">torch.Tensor</code> is not just a multi-dim array of values. It is three things wrapping a flat storage:</p>
+
+<ol>
+  <li><strong>Storage</strong> — a flat 1D block of memory holding the actual numbers.</li>
+  <li><strong>Shape</strong> — how to interpret those numbers as a multi-dim grid.</li>
+  <li><strong>Strides</strong> — how many storage elements to skip when each dim index increments by 1.</li>
+</ol>
+
+<p>Multiple tensors can share one storage with different shapes and strides — that is what views are.</p>
+
+<h2 id="row-major-c-order-layout">Row-major (C-order) layout</h2>
+
+<p>PyTorch and NumPy default to <strong>row-major</strong> layout: the last dim is the “fast” one, and rows are contiguous in storage.</p>
+
+<p>For <code class="language-plaintext highlighter-rouge">X = torch.arange(6).reshape(2, 3)</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>X = [[0, 1, 2],
+     [3, 4, 5]]
+Storage:  [0, 1, 2, 3, 4, 5]
+Shape:    (2, 3)
+Strides:  (3, 1)
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">Strides = (3, 1)</code> says: to move one row, advance 3 in storage; to move one column, advance 1.</p>
+
+<p>A tensor is <strong>contiguous</strong> when its strides match what you would expect for a freshly-allocated row-major layout. Operations that change axis order break contiguity by leaving strides that no longer match storage order.</p>
+
+<h2 id="the-reshape-rule">The reshape rule</h2>
+
+<blockquote>
+  <p><strong><code class="language-plaintext highlighter-rouge">reshape(...)</code> walks the logical tensor in row-major order, then lays out the new shape filling row-major.</strong></p>
+</blockquote>
+
+<p>The key word is <em>logical</em>. Reshape iterates through the tensor as if it had been freshly materialised into a contiguous buffer, and uses that walk to populate the new shape.</p>
+
+<p>For a contiguous tensor, the logical row-major walk matches storage order, so <code class="language-plaintext highlighter-rouge">reshape</code> is just metadata — no copy.</p>
+
+<p>For a non-contiguous tensor (typically after a transpose / permute), the logical row-major walk does not correspond to a stride pattern over the original storage, so PyTorch <strong>materialises a copy</strong> into a fresh contiguous buffer first, then reshapes.</p>
+
+<h2 id="view-vs-reshape"><code class="language-plaintext highlighter-rouge">view</code> vs <code class="language-plaintext highlighter-rouge">reshape</code></h2>
+
+<ul>
+  <li><strong><code class="language-plaintext highlighter-rouge">view(...)</code></strong>: requires the tensor’s strides to permit the new shape without a copy. Errors otherwise. Never copies.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">reshape(...)</code></strong>: permissive. Returns a view if it can; copies if it cannot. Convenient but hides the cost.</li>
+</ul>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="p">.</span><span class="nf">arange</span><span class="p">(</span><span class="mi">6</span><span class="p">).</span><span class="nf">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>         <span class="c1"># contiguous
+</span>
+<span class="n">X</span><span class="p">.</span><span class="nf">view</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>                              <span class="c1"># works — view
+</span><span class="n">X</span><span class="p">.</span><span class="nf">reshape</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>                           <span class="c1"># works — view (no copy needed)
+</span>
+<span class="n">X</span><span class="p">.</span><span class="n">T</span><span class="p">.</span><span class="nf">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>                              <span class="c1"># RuntimeError — strides incompatible
+</span><span class="n">X</span><span class="p">.</span><span class="n">T</span><span class="p">.</span><span class="nf">contiguous</span><span class="p">().</span><span class="nf">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>                 <span class="c1"># works — explicit copy via contiguous()
+</span><span class="n">X</span><span class="p">.</span><span class="n">T</span><span class="p">.</span><span class="nf">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>                           <span class="c1"># works — silent copy
+</span></code></pre></div></div>
+
+<p>For hot-path code where allocations matter, prefer <code class="language-plaintext highlighter-rouge">view</code> and call <code class="language-plaintext highlighter-rouge">.contiguous()</code> explicitly so copies are visible. For prototyping, <code class="language-plaintext highlighter-rouge">reshape</code> is fine.</p>
+
+<h2 id="axis-moving-operations-the-catalogue">Axis-moving operations (the catalogue)</h2>
+
+<p>All of these are metadata changes — they swap shape and strides without moving data. They typically produce non-contiguous tensors.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>op</th>
+      <th>what it does</th>
+      <th>example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.T</code></td>
+      <td>2D transpose; reverses dims for &gt;2D (deprecated for &gt;2D)</td>
+      <td><code class="language-plaintext highlighter-rouge">X.T</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.mT</code></td>
+      <td>matrix transpose — swap the last two dims</td>
+      <td><code class="language-plaintext highlighter-rouge">X.mT</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.t()</code></td>
+      <td>2D transpose, method form</td>
+      <td><code class="language-plaintext highlighter-rouge">X.t()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.transpose(d0, d1)</code></td>
+      <td>swap two specific dims</td>
+      <td><code class="language-plaintext highlighter-rouge">X.transpose(0, 2)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.swapaxes(d0, d1)</code> / <code class="language-plaintext highlighter-rouge">.swapdims(d0, d1)</code></td>
+      <td>aliases for transpose</td>
+      <td><code class="language-plaintext highlighter-rouge">X.swapaxes(0, 1)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.permute(*dims)</code></td>
+      <td>reorder all dims at once</td>
+      <td><code class="language-plaintext highlighter-rouge">X.permute(2, 0, 1)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.movedim(src, dst)</code></td>
+      <td>move dim(s) from src to dst, slide rest</td>
+      <td><code class="language-plaintext highlighter-rouge">X.movedim(0, -1)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.unsqueeze(dim)</code></td>
+      <td>insert a length-1 dim</td>
+      <td><code class="language-plaintext highlighter-rouge">X.unsqueeze(0)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.squeeze(dim)</code></td>
+      <td>remove a length-1 dim</td>
+      <td><code class="language-plaintext highlighter-rouge">X.squeeze(0)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.flatten(start, end)</code></td>
+      <td>collapse contiguous dim range</td>
+      <td><code class="language-plaintext highlighter-rouge">X.flatten(1, 3)</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Notes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">permute</code> takes a tuple listing the <em>source</em> dim for each new position: <code class="language-plaintext highlighter-rouge">permute(2, 0, 1)</code> means “new dim 0 is old dim 2; new dim 1 is old dim 0; …”.</li>
+  <li><code class="language-plaintext highlighter-rouge">movedim</code> is the ergonomic “take this one dim and put it over there” form: <code class="language-plaintext highlighter-rouge">movedim(0, -1)</code> slides dim 0 to the last position. Also accepts tuples: <code class="language-plaintext highlighter-rouge">movedim((0, 1), (-2, -1))</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">squeeze</code> / <code class="language-plaintext highlighter-rouge">unsqueeze</code> preserve contiguity (they only insert / remove length-1 dims).</li>
+  <li><code class="language-plaintext highlighter-rouge">flatten</code> on a non-contiguous tensor will copy, like reshape.</li>
+</ul>
+
+<h2 id="transpose-vs-reshape-to-the-same-shape"><code class="language-plaintext highlighter-rouge">transpose</code> vs <code class="language-plaintext highlighter-rouge">reshape</code> to the same shape</h2>
+
+<p>These produce <strong>same-shape but completely different tensors</strong>:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="p">.</span><span class="nf">arange</span><span class="p">(</span><span class="mi">120</span><span class="p">).</span><span class="nf">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+<span class="n">Y</span> <span class="o">=</span> <span class="n">X</span><span class="p">.</span><span class="nf">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>        <span class="c1"># shape (4, 3, 2, 5)
+</span><span class="n">Z</span> <span class="o">=</span> <span class="n">X</span><span class="p">.</span><span class="nf">reshape</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>    <span class="c1"># shape (4, 3, 2, 5)
+</span></code></pre></div></div>
+
+<p>The mapping is governed by completely different rules:</p>
+
+<ul>
+  <li><strong>Transpose</strong> preserves data semantics. <code class="language-plaintext highlighter-rouge">Y[c, b, a, d] == X[a, b, c, d]</code> — same element, relabelled coordinates.</li>
+  <li><strong>Reshape</strong> preserves the flat byte stream. <code class="language-plaintext highlighter-rouge">Z[c, b, a, d] == X.flatten()[c*30 + b*10 + a*5 + d]</code> — whichever element falls at that flat index under the new shape’s row-major traversal.</li>
+</ul>
+
+<p>Spot check:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">X</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>   <span class="c1"># = 119
+</span><span class="n">Y</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>   <span class="c1"># = X[1, 2, 3, 4] = 119
+</span><span class="n">Z</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>   <span class="c1"># = X.flatten()[119] = 119
+</span>
+<span class="n">Y</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>   <span class="c1"># = X[0, 2, 3, 4] = 59
+</span><span class="n">Z</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>   <span class="c1"># = X.flatten()[114] = 114
+</span></code></pre></div></div>
+
+<p>Same coordinate, different elements.</p>
+
+<h3 id="why-this-matters">Why this matters</h3>
+
+<p>If <code class="language-plaintext highlighter-rouge">X</code> is a rollout buffer of shape <code class="language-plaintext highlighter-rouge">(T, N, obs_dim)</code>:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">X.transpose(0, 1)</code> → <code class="language-plaintext highlighter-rouge">(N, T, obs_dim)</code>, <strong>data preserved</strong>, semantically still “obs of env n at time t.”</li>
+  <li><code class="language-plaintext highlighter-rouge">X.reshape(N, T, obs_dim)</code> → <code class="language-plaintext highlighter-rouge">(N, T, obs_dim)</code>, <strong>data scrambled</strong>, the new dim 0 is no longer “env index.”</li>
+</ul>
+
+<p>If you write the reshape when you meant the transpose, your training loop runs without error and produces garbage.</p>
+
+<h3 id="which-op-to-use">Which op to use</h3>
+
+<ul>
+  <li><strong>Want to relabel dims while keeping the same data at each coordinate?</strong> → <code class="language-plaintext highlighter-rouge">transpose</code> / <code class="language-plaintext highlighter-rouge">permute</code> / <code class="language-plaintext highlighter-rouge">movedim</code>.</li>
+  <li><strong>Want to reinterpret the flat byte stream under a new shape?</strong> → <code class="language-plaintext highlighter-rouge">view</code> / <code class="language-plaintext highlighter-rouge">reshape</code>.</li>
+  <li><strong>Want to do both</strong> (e.g., transpose then flatten)? → transpose first, then <code class="language-plaintext highlighter-rouge">reshape</code>. The reshape will copy under the hood, producing a contiguous buffer in the new logical order.</li>
+</ul>
+
+<h2 id="when-does-a-copy-happen">When does a copy happen?</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>op</th>
+      <th>copies?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">transpose</code>, <code class="language-plaintext highlighter-rouge">permute</code>, <code class="language-plaintext highlighter-rouge">swapdims</code>, <code class="language-plaintext highlighter-rouge">movedim</code></td>
+      <td>no (metadata only)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">unsqueeze</code>, <code class="language-plaintext highlighter-rouge">squeeze</code></td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">view</code> on a compatible-strided tensor</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">view</code> on an incompatible-strided tensor</td>
+      <td><strong>errors</strong> (no copy attempted)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">reshape</code> when strides permit</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">reshape</code> when strides forbid (e.g., after permute)</td>
+      <td><strong>yes, silently</strong></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">flatten</code> on contiguous tensor</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">flatten</code> on non-contiguous tensor</td>
+      <td>yes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.contiguous()</code> on contiguous tensor</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.contiguous()</code> on non-contiguous tensor</td>
+      <td><strong>yes, explicitly</strong></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.clone()</code></td>
+      <td>yes, always</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.to(other_device)</code> (different device)</td>
+      <td>yes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">.to(other_dtype)</code> (different dtype)</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The rule: a copy happens when the operation needs a new storage layout. Pure axis relabelling does not. Anything that materialises a fresh row-major buffer (<code class="language-plaintext highlighter-rouge">contiguous</code>, <code class="language-plaintext highlighter-rouge">clone</code>, reshape-after-permute, dtype/device change) does.</p>
+
+<h2 id="practical-rules">Practical rules</h2>
+
+<ul>
+  <li>Default to <code class="language-plaintext highlighter-rouge">view</code> when you know the tensor is contiguous and you only want to merge / split dims.</li>
+  <li>Reach for <code class="language-plaintext highlighter-rouge">.contiguous().view(...)</code> when you want the copy to be visible in code.</li>
+  <li>Use <code class="language-plaintext highlighter-rouge">reshape</code> for prototyping; replace with <code class="language-plaintext highlighter-rouge">.contiguous().view(...)</code> when reviewing for hot paths.</li>
+  <li>For complex reorderings, use <code class="language-plaintext highlighter-rouge">einops.rearrange</code> — it makes the intent legible:</li>
+</ul>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="n">einops</span> <span class="kn">import</span> <span class="n">rearrange</span>
+
+<span class="c1"># Instead of: x.permute(0, 2, 1, 3).contiguous().view(B, T, H * D)
+</span><span class="n">x</span> <span class="o">=</span> <span class="nf">rearrange</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="sh">'</span><span class="s">b h t d -&gt; b t (h d)</span><span class="sh">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Same underlying ops.</p>
+
+<ul>
+  <li>For any shape change after a transpose / permute / slice, assume a copy will happen unless you have specifically reasoned about stride compatibility.</li>
+</ul>
+
+<h2 id="the-numpy-footnote">The numpy footnote</h2>
+
+<p>NumPy’s <code class="language-plaintext highlighter-rouge">reshape</code> accepts an <code class="language-plaintext highlighter-rouge">order=</code> parameter (<code class="language-plaintext highlighter-rouge">'C'</code> for row-major, <code class="language-plaintext highlighter-rouge">'F'</code> for column-major) that controls the traversal direction. PyTorch does not — it only supports row-major. F-order behaviour can be emulated in PyTorch by transposing before <em>and after</em> the reshape (reshaping to the reversed target shape in between).</p>
+
+<h2 id="tldr">tl;dr</h2>
+
+<ul>
+  <li>A tensor is <strong>storage + shape + strides</strong>. Axis-moving ops change shape and strides; storage stays.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">reshape</code> walks the logical tensor row-major</strong> and lays out the new shape row-major. For contiguous tensors this is a view; for non-contiguous tensors it copies.</li>
+  <li><strong><code class="language-plaintext highlighter-rouge">view</code> is <code class="language-plaintext highlighter-rouge">reshape</code> without the copy option.</strong> Errors if a copy would be needed.</li>
+  <li><strong>Transpose preserves data semantics; reshape reinterprets the flat logical element stream.</strong> They produce different tensors even at the same shape.</li>
+  <li>The only way a copy happens is when an op needs a new storage layout (<code class="language-plaintext highlighter-rouge">reshape</code> after a permute, <code class="language-plaintext highlighter-rouge">contiguous</code>, dtype/device change, <code class="language-plaintext highlighter-rouge">clone</code>, <code class="language-plaintext highlighter-rouge">flatten</code> of non-contiguous).</li>
+  <li>Use <code class="language-plaintext highlighter-rouge">view</code> (or <code class="language-plaintext highlighter-rouge">.contiguous().view()</code>) when allocations should be visible; use <code class="language-plaintext highlighter-rouge">reshape</code> when convenience matters; use <code class="language-plaintext highlighter-rouge">einops.rearrange</code> when the reorder is complex enough to be unreadable.</li>
+</ul>
+
+      <a class="back-link" href="/notes/">← All notes</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generalised Advantage Estimation · Matthew Willetts</title>
+  <meta name="description" content="Machine learning researcher & engineer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <article class="post note">
+      <p class="note-kicker"><a href="/notes/">Notes</a></p>
+      <h1>Generalised Advantage Estimation</h1>
+      <p class="note-meta">
+        Matthew Willetts, with assistance from Codex and Claude
+        <span class="sep">·</span>v0.3
+        <span class="sep">·</span>June 2026
+      </p>
+      
+        <p class="note-links">
+          <a href="/docs/notes/gae-recursion.pdf">PDF</a>
+          
+        </p>
+      
+      <h2 id="1-the-quantity">1. The quantity</h2>
+
+<p>For a policy \(\pi\), the advantage at \((s_t, a_t)\) is</p>
+
+\[A^\pi(s_t, a_t) = Q^\pi(s_t, a_t) - V^\pi(s_t),\]
+
+<p>which says: <em>how much better was this action than the average action \(\pi\) would have taken from this state.</em> It is the natural multiplier in the policy gradient — \(\nabla J \approx \mathbb{E}[\nabla \log \pi(a_t \mid s_t)\, A^\pi(s_t, a_t)]\) — because it gives the same gradient as \(Q\) but with lower variance (the \(V\) baseline has zero expectation against the score function).</p>
+
+<p>The problem: \(Q^\pi\) is not observed. We have observed rewards \(r_t, r_{t+1}, \ldots\) and a learned estimate \(V_\phi(s)\).</p>
+
+<h2 id="2-the-family-of-k-step-estimators">2. The family of \(k\)-step estimators</h2>
+
+<p>Bellman’s equation says \(Q(s_t, a_t) = \mathbb{E}[r_t + \gamma V(s_{t+1})]\). So we can estimate \(Q\) by using \(k\) observed rewards before falling back on the learned \(V\):</p>
+
+\[\hat A_t^{(1)} = r_t + \gamma V(s_{t+1}) - V(s_t) =: \delta_t\]
+
+\[\hat A_t^{(2)} = r_t + \gamma r_{t+1} + \gamma^2 V(s_{t+2}) - V(s_t)\]
+
+\[\hat A_t^{(k)} = \sum_{i=0}^{k-1} \gamma^i\, r_{t+i} + \gamma^k V(s_{t+k}) - V(s_t)\]
+
+\[\hat A_t^{(\infty)} = G_t - V(s_t),\qquad G_t = \sum_{i=0}^\infty \gamma^i r_{t+i}.\]
+
+<p>Each \(k\) has a different bias-variance profile:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>\(k\)</th>
+      <th>bias</th>
+      <th>variance</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1 (pure TD)</td>
+      <td>high (heavily relies on \(V\))</td>
+      <td>low (only one noisy reward summed)</td>
+    </tr>
+    <tr>
+      <td>intermediate</td>
+      <td>intermediate</td>
+      <td>intermediate</td>
+    </tr>
+    <tr>
+      <td>\(\infty\) (pure MC)</td>
+      <td>zero (no bootstrap, \(V\) only enters as a mean-zero baseline)</td>
+      <td>high (full noisy trajectory return summed)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>A useful identity: each \(k\)-step estimator telescopes to a sum of TD residuals,</p>
+
+\[\hat A_t^{(k)} = \sum_{i=0}^{k-1} \gamma^i\, \delta_{t+i}.\]
+
+<p>The \(V\) terms in the sum cancel in adjacent pairs, leaving only the \(\delta\)s. This makes the next step possible.</p>
+
+<h2 id="3-gae-exponentially-weighted-average">3. GAE: exponentially-weighted average</h2>
+
+\[\hat A_t^{\text{GAE}(\gamma, \lambda)} = (1 - \lambda) \sum_{k=1}^\infty \lambda^{k-1}\, \hat A_t^{(k)}.\]
+
+<p>The weights \((1-\lambda)\lambda^{k-1}\) form a normalised geometric distribution over \(k\). The parameter \(\lambda \in [0, 1]\) slides between the two extremes:</p>
+
+<ul>
+  <li>\(\lambda = 0\): all mass on \(k=1\) → \(\hat A_t = \delta_t\) (pure TD).</li>
+  <li>\(\lambda = 1\): all mass at \(k \to \infty\) → \(\hat A_t = G_t - V(s_t)\) (pure MC).</li>
+  <li>\(\lambda = 0.95\) (typical): mostly long-horizon (low bias) with a fast-decaying short-horizon contribution (variance control).</li>
+</ul>
+
+<h2 id="4-the-recursion">4. The recursion</h2>
+
+<p>Substituting the telescoping identity into the weighted sum:</p>
+
+\[\hat A_t^{\text{GAE}} = (1-\lambda) \sum_{k=1}^\infty \lambda^{k-1} \sum_{i=0}^{k-1} \gamma^i \delta_{t+i} = \sum_{i=0}^\infty (\gamma\lambda)^i\, \delta_{t+i}.\]
+
+<p>Reading the sum off the front gives the recursion:</p>
+
+\[\boxed{\hat A_t = \delta_t + \gamma\lambda\, \hat A_{t+1}}\]
+
+<p>walked <strong>backward</strong> over time, with boundary \(\hat A_T = 0\). This is what you implement: one pass from \(T-1\) down to \(0\), carrying a scalar.</p>
+
+<h2 id="5-boundary-condition">5. Boundary condition</h2>
+
+<p>\(\hat A_T = 0\) because past the end of collected data there are no \(\delta\)s to add — anything known about the future is already absorbed into \(V(s_T)\), which entered the recursion via \(\delta_{T-1}\). No further correction is warranted.</p>
+
+<p>If the rollout was <em>truncated</em> mid-episode, \(V(s_T)\) provides a bootstrap estimate of remaining return. If the episode <em>terminated</em> naturally, \(V(s_T) = 0\) (the done-mask handles this).</p>
+
+<h2 id="6-done-masking-across-episode-boundaries">6. Done masking across episode boundaries</h2>
+
+<p>When a rollout spans multiple episodes, the GAE carry must not bleed across boundaries. With \(d_t \in \{0, 1\}\) marking terminal transitions:</p>
+
+\[\delta_t = r_t + \gamma\, V(s_{t+1})\,(1 - d_t) - V(s_t)\]
+
+\[\hat A_t = \delta_t + \gamma\lambda\,(1 - d_t)\, \hat A_{t+1}.\]
+
+<p>When \(d_t = 1\): the \(\gamma V(s_{t+1})\) bootstrap is zeroed (the episode ended, no future to bootstrap) <strong>and</strong> the GAE carry from \(t+1\) is killed (the next step belongs to a fresh, unrelated episode).</p>
+
+<h2 id="7-value-targets">7. Value targets</h2>
+
+<p>Training \(V_\phi\) requires targets. The internally consistent choice is</p>
+
+\[R_t = \hat A_t + V(s_t).\]
+
+<p>Limits:</p>
+
+<ul>
+  <li>\(\lambda = 1\): \(R_t = G_t\) (Monte Carlo return).</li>
+  <li>\(\lambda = 0\): \(R_t = r_t + \gamma V(s_{t+1})(1-d_t)\) (1-step TD target).</li>
+  <li>General \(\lambda\): lambda-weighted bootstrap-aware target.</li>
+</ul>
+
+<p>Using \(R_t = \hat A_t + V(s_t)\) ensures \(V_\phi\) is trained toward the same kind of quantity that GAE implicitly assumes. Training \(V_\phi\) on MC returns while computing advantages with \(\lambda \neq 1\) would create a mismatch — the implicit \(V\) inside GAE would not match the trained \(V\).</p>
+
+<h2 id="8-implementation-sketch">8. Implementation sketch</h2>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">T</span> <span class="o">=</span> <span class="nf">len</span><span class="p">(</span><span class="n">rewards</span><span class="p">)</span>
+<span class="n">advantages</span> <span class="o">=</span> <span class="n">torch</span><span class="p">.</span><span class="nf">zeros</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+<span class="n">gae</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nf">reversed</span><span class="p">(</span><span class="nf">range</span><span class="p">(</span><span class="n">T</span><span class="p">)):</span>
+    <span class="n">next_v</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">t</span><span class="o">+</span><span class="mi">1</span> <span class="o">&lt;</span> <span class="n">T</span> <span class="k">else</span> <span class="n">last_value</span>   <span class="c1"># bootstrap or 0
+</span>    <span class="n">nonterm</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">dones</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">rewards</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="n">gamma</span> <span class="o">*</span> <span class="n">next_v</span> <span class="o">*</span> <span class="n">nonterm</span> <span class="o">-</span> <span class="n">values</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+    <span class="n">gae</span> <span class="o">=</span> <span class="n">delta</span> <span class="o">+</span> <span class="n">gamma</span> <span class="o">*</span> <span class="n">lam</span> <span class="o">*</span> <span class="n">nonterm</span> <span class="o">*</span> <span class="n">gae</span>
+    <span class="n">advantages</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">gae</span>
+<span class="n">returns</span> <span class="o">=</span> <span class="n">advantages</span> <span class="o">+</span> <span class="n">values</span>
+</code></pre></div></div>
+
+<p>For PPO:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">advantages</code> and <code class="language-plaintext highlighter-rouge">returns</code> are <em>targets</em>; detach before use in losses.</li>
+  <li>Normalise advantages for stability: <code class="language-plaintext highlighter-rouge">(adv - adv.mean()) / (adv.std() + 1e-8)</code>.</li>
+  <li>Do <strong>not</strong> normalise returns — they are the regression target for \(V_\phi\) and need to stay in raw scale.</li>
+</ul>
+
+<h2 id="9-what-λ-means">9. What λ means</h2>
+
+<p>\(\lambda\) controls how much you trust observed rewards vs the learned value function. \(\lambda = 1\) trusts observations entirely (zero bias, high variance); \(\lambda = 0\) trusts \(V\) heavily (low variance, high bias from imperfect \(V\)); \(\lambda = 0.95\) is the standard “lean on observations but use \(V\) for variance control” choice.</p>
+
+<h2 id="10-quick-worked-example">10. Quick worked example</h2>
+
+<p>A 4-step trajectory with \(\gamma = 0.99\), \(\lambda = 0.95\), no terminations until the end (\(d_3 = 1\)):</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>\(t\)</th>
+      <th>\(r_t\)</th>
+      <th>\(V(s_t)\)</th>
+      <th>\(\delta_t = r_t + \gamma V(s_{t+1})(1-d_t) - V(s_t)\)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>0</td>
+      <td>1</td>
+      <td>4</td>
+      <td>\(1 + 0.99 \cdot 3 - 4 = -0.03\)</td>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td>1</td>
+      <td>3</td>
+      <td>\(1 + 0.99 \cdot 2 - 3 = -0.02\)</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>1</td>
+      <td>2</td>
+      <td>\(1 + 0.99 \cdot 1 - 2 = -0.01\)</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>1</td>
+      <td>1</td>
+      <td>\(1 + 0.99 \cdot 0 \cdot 0 - 1 = 0\) (terminal)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Backward recursion with \(\hat A_4 = 0\):</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>\(t\)</th>
+      <th>\(\hat A_t = \delta_t + \gamma\lambda(1-d_t)\hat A_{t+1}\)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>3</td>
+      <td>\(0 + 0.99 \cdot 0.95 \cdot 0 \cdot 0 = 0\)</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>\(-0.01 + 0.99 \cdot 0.95 \cdot 1 \cdot 0 = -0.01\)</td>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td>\(-0.02 + 0.99 \cdot 0.95 \cdot 1 \cdot (-0.01) \approx -0.0294\)</td>
+    </tr>
+    <tr>
+      <td>0</td>
+      <td>\(-0.03 + 0.99 \cdot 0.95 \cdot 1 \cdot (-0.0294) \approx -0.0577\)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>And value targets \(R_t = \hat A_t + V(s_t)\): \((3.94, 2.97, 1.99, 1.00)\). These are what \(V_\phi\) regresses toward.</p>
+
+<p>The all-negative \(\hat A_t\) here means the value function was slightly overestimating; advantages are corrections that push \(V\) down. In real training the signs and magnitudes will fluctuate as the policy and value function co-evolve.</p>
+
+      <a class="back-link" href="/notes/">← All notes</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>

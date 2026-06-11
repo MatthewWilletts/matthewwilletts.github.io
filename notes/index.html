@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notes · Matthew Willetts</title>
+  <meta name="description" content="Machine learning researcher & engineer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <div class="notes-intro">
+  <h1>Notes</h1>
+  <p>Technical notes, refreshers, and worked derivations on varied ML topics.</p>
+</div>
+
+<section>
+  <h2 class="section-title">Long-form Notes</h2>
+  <div class="note-list">
+    <article class="note-card">
+      <h3><a href="/docs/notes/diffusion-flow-matching.pdf">Noise, Scores, and Straight Lines</a></h3>
+      <p>Diffusion models and flow matching, developed from paths of distributions, scores, velocity fields, SDEs, ODEs, DDPM, guidance, and solver intuition.</p>
+      <p class="note-card-meta"><span>v0.1</span><a href="/docs/notes/diffusion-flow-matching.pdf">PDF</a><a href="/docs/notes/diffusion-flow-matching.tex">TeX</a></p>
+    </article>
+    <article class="note-card">
+      <h3><a href="/docs/notes/neural-operators.pdf">Functions In, Functions Out</a></h3>
+      <p>Neural operators as learned solution operators: DeepONets, FNOs, graph operators, low-rank variants, physics-informed losses, and time-dependent maps.</p>
+      <p class="note-card-meta"><span>v0.1</span><a href="/docs/notes/neural-operators.pdf">PDF</a><a href="/docs/notes/neural-operators.tex">TeX</a></p>
+    </article>
+  </div>
+</section>
+
+<section>
+  <h2 class="section-title">ML 101s</h2>
+  <div class="note-list">
+    <article class="note-card">
+      <h3><a href="/notes/attention-backward/">Attention Backward Pass</a></h3>
+      <p>A full index-notation derivation of self-attention backpropagation, including the row-wise softmax Jacobian and the final matrix-form gradients.</p>
+      <p class="note-card-meta"><span>v0.3</span><a href="/docs/notes/attention-backward.pdf">PDF</a></p>
+    </article>
+    <article class="note-card">
+      <h3><a href="/notes/direct-preference-optimization/">Direct Preference Optimization</a></h3>
+      <p>A clean DPO derivation from KL-regularised RL and Bradley-Terry preferences, plus implementation details and common variants.</p>
+      <p class="note-card-meta"><span>v0.4</span><a href="/docs/notes/direct-preference-optimization.pdf">PDF</a></p>
+    </article>
+    <article class="note-card">
+      <h3><a href="/notes/gae-recursion/">Generalised Advantage Estimation</a></h3>
+      <p>The GAE recursion from k-step advantage estimators, TD residuals, masking, value targets, and the lambda bias-variance knob.</p>
+      <p class="note-card-meta"><span>v0.3</span><a href="/docs/notes/gae-recursion.pdf">PDF</a></p>
+    </article>
+    <article class="note-card">
+      <h3><a href="/notes/pytorch-storage-shape/">PyTorch: Storage, Shape, and Axis-Moving</a></h3>
+      <p>Storage, shape, strides, views, reshapes, transposes, contiguity, and the exact class of tensor bugs that silently scramble data.</p>
+      <p class="note-card-meta"><span>v0.3</span><a href="/docs/notes/pytorch-storage-shape.pdf">PDF</a></p>
+    </article>
+  </div>
+</section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>

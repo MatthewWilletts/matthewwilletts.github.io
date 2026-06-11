@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learning Independent Representations using Flows & <i>Fixed</i> Linear Models · Matthew Willetts</title>
+  <meta name="description" content="This post gives an overview of the ideas in my AISTATS 2021 paper `Learning Bijective Feature Maps for Linear ICA’, work done with my friends and colleagues ...">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <script>
+  MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      tags: 'ams',
+      macros: {
+        KL: '\\mathrm{KL}',
+        W: '\\mathcal{W}'
+      }
+    },
+    chtml: { displayAlign: 'center' }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
+<article class="post">
+  <h1>Learning Independent Representations using Flows & <i>Fixed</i> Linear Models</h1>
+  <div class="post-date">February 7, 2021</div>
+  <p>This post gives an overview of the ideas in my <a href="https://arxiv.org/abs/2002.07766">AISTATS 2021 paper</a> `Learning Bijective Feature Maps for Linear ICA’, work done with my friends and colleagues at the University of Oxford, UCL, and The Alan Turing Institute.</p>
+
+<p>One branch of ML research aims to build models that learn descriptions of data that are <em>‘disentangled’</em>.
+We want the model to pull-apart input data, commonly images, into the separate and clearly meaningful factors that explain it, ie that cogently and cleanly summarise it.
+We want to do this just from looking at the input data, the images themselves – so with no external additional source of information.</p>
+
+<p>Commonly, to obtain disentangled representations we look to find a set of descriptive factors that are in a technical sense <em>independent</em> of each other (though there are other approaches out there too).
+An example that helps us get a handle on this idea would be learning ‘disentangled’ representations for a stack of photos of peoples’ faces.
+We can describe a face via a set of ‘atomic’ facts.
+Perhaps some given photo is of a: <em>‘smiling’</em> <em>‘young’</em> <em>‘man’</em> <em>‘with red hair’</em> <em>‘wearing sunglasses’</em>, <em>‘against a green background’</em>.
+It is reasonable to expect that <em>‘wearing sunglasses’</em> is pretty independent from <em>‘having red hair’</em>, as (probably) is being <em>‘young’</em> and so on down the list<sup id="fnref:1"><a href="#fn:1" class="footnote" rel="footnote" role="doc-noteref">1</a></sup>.</p>
+
+<p>By specifying a model that tries to find these independent, simple, compressed, descriptions of data, the hope is that the individual learnt factors each correspond to separate and interpretable aspects of the data.</p>
+
+<p>An approach that was popular for this problem, \(\beta\)–TCVAEs (Chen et al., 2018) and related models, where we train a generative model for our data while penalising the independence between learnt representations, has turned out to be highly dependent on careful tuning of the process.
+In other words, you have to be pretty lucky for it to work (Locatello et al., 2019; Rolinek et al., 2019).
+See <a href="https://matthewwilletts.github.io/Defending-VAEs-from-Adversarial-Attack/">my post on robustness in VAEs</a> for (much) more discussion of these methods and what they can <em>actually</em> be useful for.</p>
+
+<p>Our paper gives a new way to obtain <em>statistically independent</em> latent representations of high-dimensional data like images, by bringing together some new ideas in ML with both ideas from random projections and the classical method of <em>independent components analysis</em>.</p>
+
+<h2 id="background-independent-components-analysis">Background: Independent Components Analysis</h2>
+
+<!-- Perhaps you've heard of Principle Components Analysis (PCA), where we use some gorgeous linear algebra to find a simple low-dimensional representation of our data.
+ -->
+
+<p>Before we get to all that, a brief skim over how we can attack this problem (of trying to learn statistically independent representations) when we only have to work with low-dimensional data.
+It turns out that often linear methods are enough, and being linear they have all sorts of pleasant properties.
+This linear approach to the problem will be a key sub-module in our full approach.</p>
+
+<p>While Principle Components Analysis (PCA) is the blockbuster algorithm for discovering latent structure in data using linear algebra, we are interested in its sister method, the often-overlooked but arguably much cooler method <em>Independent Components Analysis</em> (ICA).
+\(\renewcommand{\vector}[1]{\boldsymbol{\mathbf{#1}}}\)
+\(\renewcommand{\v}{\vector}\)
+\(\newcommand\vv[1]{\vec{\v{#1}}}\)
+\(\newcommand\KL{\mathrm{KL}}\)
+\(\newcommand\ELBO{\mathcal{L}}\)
+\(\newcommand\expect{\mathbb{E}}\)
+\(\newcommand\diff{\mathrm{d}}\)
+\(\newcommand\argmin{\mathrm{arg \,min}}\)</p>
+
+<p>In ICA we want to find latent factors that explain the data, but unlike in PCA we are going to require that our discovered latent variables are statistically independent, instead of merely just explanatory of the variance in the data.</p>
+
+<p>The classic applied problem that ICA solves is <em>blind source separation</em>: there are some sources of audio, say, that are all making sounds on top of each other, a group of musicians playing instruments in an band, for example.
+We have laid out a bunch of microphones randomly all around the room so we end up with a set of simultaneously-made audio recordings.
+We want to <em>reverse</em> the mixing process, and obtain separate recordings of each pure source, i.e. one for each instrument.
+We want to <em>unmix</em> our data.</p>
+
+<p>Say we have \(d_x\) microphones, so we have \(d_x\) recordings of the room.
+Each of those microphones will have picked up a slightly different local audio signal – one happened to be really near the guy playing a tuba, one was off away in a corner, and so on.
+<!-- So, we put down $$d_x$$ microphones.
+ --><!-- Now we will make an assumption that makes things a fair bit simpler mathematically: that we picked $$d_$$ microphones because we knew that there were $$d_x$$ different instruments being played.
+ --></p>
+
+<p>Now we can start to describe ICA.
+Our multi-track audio data is a time series of \(N\) temporal segments.
+Let’s denote each momentary microphone recording data as \(\v{x}_{ji}\), \(j\in\{1,...,d_x\}\), \(i\in\{1,...,N\}\), which all together form the data matrix \(\v X\).
+So the first index \(j\) indexes over the different microphones we have and \(i\) index over time.
+The simple version of ICA, and the one we will build off, really doesn’t care about the temporal order of the data.
+We can randomly shuffle the order that our \(N\) datapoints appear and nothing would change.
+In order words, our approach works for independent and identically distributed (iid) data – and it turns out we can view these momentary snippets of audio recordings as a set of iid observations for the purpose of this model – so \(i\) can be viewed as just an index over datapoints.</p>
+
+<p>We then make a (hopefully reasonable) modelling choice, the claim, that, taken overall, there is no dependency between different instruments being played together or apart within any particular time-slice across our recordings.
+To continue with the musical setting of this problem, we are saying our data is a recording of the freest-possible jazz improv – whether or not any instrument is being played at any particular moment is independent of what other instruments are being played.
+We will denote the pure slices of waveform for the instruments as \(s_{ki}\), \(k\in\{1,...,d_s\}\), \(i\in\{1,...,N\}\).
+\(k\) indexes over the \(d_s\) different instruments (\(d_s\leq d_x\)) and \(i\) indexes over time (or a matched shuffling of it).
+It is \(\v{S}\), the whole matrix of the latent (ie, unobserved) instrument wave-forms that we want to infer.</p>
+
+<p>Then we are going to make another modelling assumption, that the process by which the audio sources were <em>mixed</em> by the natural environment and then recorded at each microphone was <em>instantaneous, linear, and constant over time</em>.
+Instantaneous means we won’t worry about different instruments having different lags for different microphones.
+(These would be present if the room was really big, so the effect of some instruments being really far from some microphones but very near to others would be something we’d have to take it into account.)
+Linear means that each recording is the result of a simple weighted sum of the sources, and being constant over time means that the mixing does not depend on the (time) index \(i\).
+Thus the recorded signal can be written:</p>
+
+\[x_{j,i} = a_{j,1} s_{1,i} + a_{j,2} s_{2,i}  + ... + a_{j,d_{x}} s_{d_{x},i}\]
+
+<p>where \(a_{jk}\) are the components of our mixing matrix.
+So each microphone has its own associated constant mixing vector.
+Dropping the \(i\) subscript, we can say
+\(\v{x} = \v{A}\v{s}\)
+where \(\v{x}\in \mathbb{R}^{d_x}\) and \(\v{s}\in \mathbb{R}^{d_s}\) are vectors holding the multi-track recordings and instrument-latents, respectively, at a moment in time, and again \(\v{A}\) is our <em>mixing matrix</em>.
+Overall we can say that all \(N\) slices of our recording are the result of a linear mapping of this type:</p>
+
+\[\v{X} = \v{AS} \label{eq:block_gen}\]
+
+<p>If we knew \(v A\), then the problem would be solved.
+We could simply invert \(\v A\), giving us the unmixing matrix \(\v{A}^{+} = \v{A}^{-1}\), and our inferred sources would then be \(\v{S}_{\mathrm{inferred}}=\v{A^{-1} X}\) (if \(d_s &lt; d_x\), \(\v{A^{-1}}\) is the <a href="https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse">psuedo-inverse</a>).</p>
+
+<p>So, to proceed with unmixing our signal, trying to get some values for \(\v{s}\) given our recorded values of \(\v{x}\), we are going to have to find \(\v{A}\).
+There are a whole bunch of ways to proceed further within this problem within the ICA framework.</p>
+
+<p>Part of what makes ICA somewhat confusing to study is that one can be solving essentially the same problem, inverting a mixing process like this, using very different looking mathematical tools.</p>
+
+<p>The most obvious approach perhaps is to specify that we wish to learn a mapping, an unmixing, that results in a maximally-independent latent representation of our data.
+A multivariate random variable is statistically independent if its probability distribution is equal to the product of its marginals.
+As discussed in my post on <a href="https://matthewwilletts.github.io/Defending-VAEs-from-Adversarial-Attack/">VAE robustness</a>, we can measure how close-to-mutually-independent a multivariate distribution is by seeing how well approximated it is by a product of its marginal distributions.
+One way to capture this is the <em>total correlation</em> (Watanabe, 1960), the \(\KL\) between these two entities:
+\(\mathrm{TC}(p(\v{a})) = \KL\left(p(\v a) \mid\mid \prod_{j=1}^{d} p(a_j) \right)\)
+where \(d\) is the dimensionality of the variable at hand.
+Thus the Total Correlation is one such measure of how close to being statistically independent a multivariate probability distribution is.
+If we try to train a mapping into the latent space from data space that minimises this quantity over our dataset, we will be doing ICA (Everson &amp; Roberts, 2001).</p>
+
+<p>This approach can work very well.
+A powerful approach that is based on this is FastICA.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Blind Source Separation using FastICA</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/sphx_glr_plot_ica_blind_source_separation_001.png#center" alt="BSS" height="400px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Here \(d_x=d_s=3\), so we have recordings by three ‘microphones’ (top panel) that are linearly-mixed versions of three ‘instruments’ (second panel) which are the latents we wish to infer. ICA unmixing (third panel) does achieve this, while PCA analysis (bottom panel) does not. Note that the ICA-output unmixing is only accurate up to scalings and flips of the true sources – all are of shrunken magnitude, and the saw-tooth component has been flipped.</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Reproduced from <a href="https://scikit-learn.org/stable/auto_examples/decomposition/plot_ica_blind_source_separation.html"><em>scikit-learn</em></a></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>But, despite its success, that is not quite the way we will proceed.
+Back in the 1990s, the papers MacKay (1996) and Cardoso (1997) showed that fitting an ICA model that aims to maximise the total correlation is equivalent to fitting and performing inference in a ‘matched’ generative model.
+This method naturally allows us to extend our approach: we can choose (up to certain requirements) the prior for our latents, the generative process can involve noise (i.e. measurement error) and we can choose from a variety of methods of inference.</p>
+
+<h2 id="probabilistic-linear-independent-components-analysis">Probabilistic Linear Independent Components Analysis</h2>
+
+<p>Here we will take a probabilistic view of linear ICA, specifying a probabilistic model for our data \(\v x\) with parameters we will try to learn, and trying to perform inference on the unknown latent variables \(\v s\). 
+Within that model we will try to find an appropriate unmixing matrix.</p>
+
+<p>So, here we need to specify a probabilistic generative model that contains linear mixing of latents to produce data, \(\v{x} = \v{As}\), at its core, and one that imposes statistical independence between latents.
+First, we will need a prior over the latents, the sources: \(p(\v{s})\).
+We want each latent to be about a single aspect of the data.
+In other words, we are asking for our representations to be in some sense <em>axis-aligned</em>.
+Perhaps surprisingly, placing separate independent, zero-mean, unit-variance Gaussian priors over the latent dimensions is not acceptable for our purposes – but why this does not work can be seen immediately if we think geometrically.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Spheres rotate into other spheres, so priors with spherical contours are not appropriate for ICA</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/Euler_AxisAngle.png#center" alt="A sphere" height="300px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">The contours of a product of Gaussians are spheres. Spheres rotate into other spheres, so we can rotate our axes arbitrarily and obtain the same distribution. So if our aim is to learn axis-aligned latents, this is bad choice.</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Reproduced from <a href="https://commons.wikimedia.org/wiki/File:Euler_AxisAngle.png"><em>wikimedia</em></a></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Imagine that we obtain a model where our latents are drawn from this prior.
+If we apply an arbitrary rotation in the latent space we will have a new model that is indistinguishable from the initial one in terms of its statistical properties, but we have achieved this new model by mixing together our latents.
+This doesn’t sound promising if we want to learn an unmixing of our data in our latent space, if arbitrary re-mixing in the latent space is a baked-in property!</p>
+
+<p>Put another way, a rotation of a product of standard Gaussians is itself a product of standard Gaussians.
+If we are interested in learning independent latent representations to undo a linear mixing process, Eq \(\eqref{eq:block_gen}\), then if that model is indistinguishable up to a whole class of linear transformations, the approach is not going to work.
+This is why the PCA results, in the lowest panel of the plot up above, are not giving us what we want.</p>
+
+<p>So, if we are going to work in a generative-modelling framework, we need a generative model that breaks this symmetry.
+It turns out that pretty much any standard distribution that isn’t a Gaussian works for our purposes – it can be either heavier-tailed than a Gaussian or lighter-tailed.
+That then gives us axis-aligned contours in the prior in the latent space.
+A product of uniform distributions is a common choice, as are Laplace distributions.
+We can parameterise a whole family of ICA-appropriate prior distributions using the Generalised Gaussian (GG)</p>
+
+\[p(\v{s})=\prod_{i=1}^{d_s} \mathrm{GG}(s_i\mid\mu,\alpha,\rho) , \qquad \mathrm{GG}(s_i|\mu,\alpha,\rho) =\frac{\rho}{2\alpha \Gamma(1/\rho)}\exp\left[{\left(-\frac{\lvert s_i - \mu\rvert}{\alpha}\right)^\rho} \right]\]
+
+<p>with mean \(\mu\), scale \(\alpha\) and shape \(\rho\).
+For \(\rho=2\) we recover a Gaussian distribution (so we cannot have \(\rho=2\)), and for \(\rho=1\) we have the (heavy-tailed) Laplace. 
+As \(\rho \to \infty\) the distribution becomes increasingly sub-Gaussian, tending to a uniform distribution.
+(In the paper, we use \(\rho=10\) in our experiments where we want something approximately uniform, and \(\rho=1\) when we want something heavy tailed.)</p>
+
+<p>Again, as discussed in my post on <a href="https://matthewwilletts.github.io/Defending-VAEs-from-Adversarial-Attack/">VAE robustness</a>, we can use <em>variational inference</em> to parameterise <em>posterior distributions</em> over the latent sources in our model.
+Following very much a VAE-like approach, we introduce an amortised posterior for \(\v s\):</p>
+
+\[q_\phi(\v s \mid \v x) = \mathcal{N}(\v{\mu}=\v{A}^{-1}\v{x}, \v \sigma = \v\sigma_\phi).\]
+
+<p>And we will say our data was generated via a likelihood \(p_\theta(\v{x}\mid\v{s})\) of the location-scale family with location \(=\v{A}\v{s}\) and fixed scale.</p>
+
+<p>Training our generative model and variational posterior then means tuning \(\v A\) [including via its (pseudo-)inverse] and \(\sigma_\phi\) to maximise a lower bound on the overall log-probability of our data under our model, the ELBO:</p>
+
+\[\ELBO(\v{X};\v{A},\sigma_\phi) = \expect_{\v{x}\sim\v{X}}\left[\expect_{\v{s}\sim_\phi(\v s \mid \v x)}\left[\log p_\theta(\v{x}\mid\v{s})\right]- \KL\left(q_\phi(\v s \mid \v x)\mid\mid p(\v{s}\right) \right].\]
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Linear Unmixing using Variational Inference</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/linear_ICA_dsp.png#center" alt="Unmixing" height="150px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Linear Unmixing using this Variational Inference approach. We take two dSprites images (a) and generate our dataset, for example (b), by making numerous linear mixings of them. Our approach (d) learns the true underlying images (the entries in \(\v A\)) much in the same way as FastICA (c) – for full details of our implementation, see the paper.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>This is a powerful method, and works well, as long as the problem conforms to the very strict assumptions we have made about how the data was generated.
+While the linear-mixing assumption is all well and good for things like audio signals, what if we are interested in high dimensional data, say images of faces like we discussed right at the start?
+The idea of <strong>linearly</strong> mixing <em>smiling</em> or <em>age</em> directly to the pixel values of the images is a bit of a non-starter.
+So what if we are interested in non-linear generative models for our data, and therefore have to consider <em>non-linear unmixings</em> to discover the latent sources?</p>
+
+<h2 id="flows-and-non-linear-ica">Flows and Non-linear ICA</h2>
+
+<p>The first problem with extending ICA to non-linear mixing is the problem of inverting a non-linear operation.
+In the above background section, we skated over the difficulties of having the dimensionality of the data \(d_x\) and the dimensionality of the sources \(d_s\) vary.
+In the linear setting the problem is pretty easy to handle if \(d_s\leq d_x\).
+In the non-linear case, however, if we want to maintain invertibility, if we want the core mapping at the heart of our generative model, \(\v x = f(\v s)\), to be a bijection between \(\mathcal{X}=\mathbb{R}^{d_x}\) and \(\mathcal{S}=\mathbb{R}^{d_s}\), then really we have to have \(d_x=d_s\).</p>
+
+<p>ICA models, linear or not, with \(d_x=d_s\) are called <em>square</em>, in analogy with the linear case for which this design choice means the linear mixing and unmixing operations are performed by square matrices.
+Early work in the 1990s by Deco &amp; Brauer (1995) and Parras et al. (1995) proposed models where the non-linear function \(f(\cdot)\) is learnable from the data and <em>is invertible by construction</em>.
+This means that we can then use \(f^{-1}(\v x)\) as (part of) the method of inference in giving us our latent representations of the sources.</p>
+
+<p>These ideas have come back to the fore in modern machine learning under the name <em>normalising flows</em>.
+Here we transform between probability distributions using an <strong>invertible</strong> function via the change-of-variables formula.
+If we have a variable \(\v z\in\mathcal{Z}=\mathbb{R}^{d_x}\) with simple base distribution \(p(\v z)\), we can specify a distribution over data \(\v x\in\mathcal{X}=\mathbb{R}^{d_x}\) as</p>
+
+\[p(\v x) = p(\v z) \left\lvert \mathrm{det} \frac{\partial f^{-1}}{\partial \v z}\right\rvert
+\label{eq:changeofvar}\]
+
+<p>where \(f\) is a bijection from \(\mathcal{Z}\rightarrow\mathcal{X}\).
+In essence under this model the generative process is that our data was made by sampling a latent variable \(\v z\) and mapping it through a function \(f\), and as the function is invertible by construction we can perform inference by simply applying \(f^{-1}\) to our data.
+It is essential that \(f\) be richly-parameterised, to give it the necessary power and flexibility to map between latents and data.
+Clearly this is a generalisation of square ICA to non-linear mixings.</p>
+
+<p>If \(f\) has a tractable Jacobian we can train this model by pure maximum likelihood on our data.
+The Jacobian being lower-triangular is a common choice – the determinant is then simply the product of the diagonal elements.
+In essence, we transform our data to representations in \(\mathcal{Z}\) and tune the parameters of \(f\) to maximise \(\log p(\v x)\) via Eq\(~\eqref{eq:changeofvar}\).</p>
+
+<p>In specifying these flow models it is standard to have them as a pipeline of simpler invertible functions that are composed together, and in doing so they retain the simple structure of their Jacobian that renders training tractable.</p>
+
+<p>For more flexible distributions for \(\v{x}\), we can use function composition to 
+specify \(\v{x}\) through a series of composed functions, from our simple initial \(p\) into a more complex multi-modal distribution; for example for a series of \(K+1\) mappings,</p>
+
+\[\v{z} = f_K \circ ... \circ f_0(\v{x}).\]
+
+<p>By the properties of determinants under function composition 
+\(\begin{equation}
+p(\v{x}) = p(\v{z}_K)\prod_{i=0}^{K}\left\lvert\mathrm{det}\frac{\partial f_{i}^{-1}}{\partial \v{z}_{i+1}}\right\rvert,
+\label{eq:deepflow}
+\end{equation}\)
+where \(\v{z_{i+1}}\) is the variable resulting from the transformation \(f_{i}(\v{z}_{i})\), \(p(\v{z}_K)\) defines a density on the \(K^{\mathrm{th}}\), and the bottom most variable is our data (\(\v{z}_0 = \v{x}\)).</p>
+
+<p>The first paper to bring these ideas back to the mainstream in modern ML was NICE: Non-linear Independent Components Estimation (Dinh et al., 2015).
+The exact method used in that paper for building the invertible ‘building blocks’ of the model has now been superseded – check the paper out, though, if you are interested.
+For us a key take-away is that this is a <em>variety</em> of non-linear ICA; the hint is in the name.
+It is not, however, quite what we want.</p>
+
+<p>The first thing to fix is that NICE (and subsequent models with richer invertible ‘building blocks’) uses \(\mathcal{N}(\v 0,\v 1)\) as the base distributions for \(\v z\).
+As discussed in the background section on Linear ICA above, Gaussians are not suitable for ICA models as they are unchanged by rotations, so intrinsically they cannot learn the axis-aligned representations we wish to obtain.
+Secondly, this method is intrinsically dimensionality preserving, and really when considering high-dimensional data like images we want to learn a latent representation of a smaller dimensionality: we don’t think that the right number of latents to model an image is the same as the number of sub-pixels.</p>
+
+<p>So, how can we try to make a model that uses the powerful bijective functions of modern flows (now more expressive than early approach like NICE) but also give us some compression: learning a reduced number of ICA-latents?</p>
+
+<h2 id="bijecta-combining-flows-with-linear-ica">Bijecta: Combining Flows with Linear ICA</h2>
+
+<p>In our paper we use a modern form of flow, a Rational Quadratic Spline (RQS) flow (Durkan et al., 2019), not as the full model but as a sub-component, as a <em>feature extractor</em> that outputs a representation \(\v z\in\mathbb{R}^{d_x}\).
+That representation is now an intermediate value that we then compress using a non-square linear ICA model.
+The idea is that we want to learn a mapping between data \(\v x\) and representations \(\v z\) for which non-square linear-ICA is an easy model to learn.
+It is as if we are <em>learning the data</em> for the linear ICA model.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Plate Diagram for Bijecta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/bijecta.png#center" alt="Bijecta" height="150px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">[Left] Generative model and [Right] Approximate Posterior for Bijecta</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>So here we have a generative model where</p>
+
+\[\begin{align}
+    &amp;p(s_i) = \mathrm{GG}(s_i |\mu=0,\alpha=1,\rho), {\mathrm{for\ } i \in \{1,\dots,d_s}\} \\
+    &amp;p(\v{z}|\v{s}) = \mathcal{N}(\v{x}|\v{A}\v{s}, \v{\Sigma}_\theta) \\
+    &amp;p_\theta(\v{x},\v{s})=p_\theta(\v{x}|\v{s})p(\v{s})=p(\v{z}|\v{s})p(\v{s})\left\lvert\mathrm{det}\frac{\partial f_\theta^{-1}}{\partial \v{z}}\right\rvert
+\end{align}\]
+
+<p>and \(\v{A} \in \mathbb{R}^{d_x\times d_s}\) is our (unknown) ICA mixing matrix, which acts on the sources to produce a linear mixture, expanding the dimensionality to \(d_x &gt; d_s\) in the process; and 
+\(\v{\Sigma}_\theta\) is a learnt or fixed diagonal covariance.
+This linear mixing of sources yields an intermediate representation \(\v{z}\) that is then mapped to the data by a flow. 
+Our model has three sets of variables: the observed data \(\v{x}\), the flow representation \(\v{z} = f^{-1}(\v{x})\), and ICA latent sources \(\v{s}\).</p>
+
+<p>We choose a linear mapping in our posterior, with \(q_\phi(\v{s}|\v{z}) = \mathrm{Laplace}(\v{s}|\v{A}^{+}\v{z}, \v{b}_\phi)\),
+where we have introduced variational parameters \(\phi=\{\v{A}^{+}, \v{b}_\phi\}\) corresponding to an unmixing matrix and a diagonal diversity.</p>
+
+<p>Roughly speaking, we are saying that our learnt latent sources are</p>
+
+\[\v s = \v{A}^+ f^{-1}_\theta(\v x) + \v b_\phi\circ\v \eta,\]
+
+<p>where \(\v{A}^+ \in \mathbb{R}^{d_s\times d_x}\) acts to ‘unmix’ the flow outputs and compress them to dimensionality \(d_s &lt; d_x\).
+\(\v\eta\sim \mathrm{Laplace}(\v 0,\v 1)\) gives us the noise associated with the amortised posterior \(q_\phi\).</p>
+
+<p>Using samples from this posterior we can define a lower bound \(\ELBO\) on the evidence for the linear ICA model in \(\mathcal{Z}\)</p>
+
+\[\begin{align}
+\log p(\v{z};\v{A},&amp;\v{\Sigma}_\theta)  \geq \ELBO(\v{z};\phi,\v{A},\v{\Sigma}_\theta) = \expect_{\v{s}\sim q}[\log p(\v{z}|\v{s}) -\KL(q_\phi(\v{s}|\v{z})|| p(\v{s})).
+\label{eq:elbo_z_ica}
+\end{align}\]
+
+<p>Using the change of variables equation, Eq \(\eqref{eq:changeofvar}\), and the lower bound on the evidence for ICA in \(\eqref{eq:elbo_z_ica}\) for \(\mathcal{Z}\), we can obtain a variational lower bound on the evidence for our data \(\v{x}\) as the sum of the ICA model’s ELBO (acting on \(\v{z}\)) and the log determinant of the flow:</p>
+
+\[\begin{align}
+\log p_\theta(\v{x};\v{A}, \v{\Sigma}_\theta)  \geq  \ELBO(\v{x};\theta, \phi,\v{A}, \v{\Sigma}_\theta) = \ELBO(\v{z};\phi,\v{A},\v{\Sigma}_\theta)
++ \log \left\lvert\mathrm{det}\frac{\partial f_\theta^{-1}}{\partial \v{z}}\right\rvert.
+\label{eq:total_var_objective}
+\end{align}\]
+
+<p>As such our model is akin to a flow model, but with an additional latent variable \(\v{s}\); the base distribution \(p(\v{z})\) of the flow is defined through marginalising out the linear mixing of the sources.</p>
+
+<p>For this method to work you might think you have to train the flow part of the model and the linear-ICA model that sits atop it at the same time.
+And, to an extent, that is true – we want the flow to learn to output good \(\v z\) representations that are easy for the linear-ICA model to act on.</p>
+
+<p>There are problems, however, with training two models on top of each other.
+For example, in GANs it is well known the discriminator is often much faster to train than the generator, so some hyper-optimisation or grid search is often needed to find some learning procedure that provides both stable training and good models.
+Similarly, here we are training a large, powerful flow model that has many millions of parameters, alongside a relatively weak linear ICA model.
+We want training to be stable and effective, and we want to avoid adding extra design choices like ‘having a different learning rate for the linear ICA part of the model’ or ‘doing \(n\) update steps of the flow for each single update of the linear ICA model’, or whatever.</p>
+
+<p>Recall also that really we are aiming more for the flow to be bent to the will of the linear ICA model: we want the flow to do the heavy lifting to make the linear ICA model’s job easy.</p>
+
+<p>To that end, we <strong>fix</strong> the unmixing matrix in the linear ICA model.
+We construct it at init, and it is then fixed.
+There is no training to be done for the unmixing matrix, so no tweaking of learning rates or anything.
+So not only is the flow trying to output representations that are good for linear ICA, the flow is having to output representations that are good for a particular, fixed unmixing procedure.</p>
+
+<p>(We still learn the mixing matrix.
+A naive pseudo-inverse doesn’t take into account the geometry of the space \(\mathcal{Z}\): some directions in \(\mathcal{Z}\) are more important to get right than others when compressing and re-expanding via \(\mathcal{S}\), and by learning \(\v A\) we can take that into account.
+In the end, the learnt \(\v A \approx \left(\v{A}^+\right)^{-1}\), but not exactly.)</p>
+
+<p>This then leads to the natural question: what is the right kind of unmixing matrix we should have for this procedure to work well?</p>
+
+<p>For that, we have to return to the world of linear ICA, and consider the manifold of optimal ICA unmixing matrices.</p>
+
+<h2 id="the-manifold-of-ica-unmixing-matrices">The Manifold of ICA Unmixing Matrices</h2>
+
+<p>With a linear ICA model, recall that \(\v{A}^{+}\) linearly maps from the data-space \(\mathcal{X}\) to the source space \(\mathcal{S}\).
+It can be decomposed into three linear operations.
+First we <em>whiten</em> the data such that each component has unit variance and these components are mutually uncorrelated.
+In the compressive case, where \(d_s &lt; d_x\), whitening is the step where we compress down the dimensionality of our representations.</p>
+
+<p>We then apply an orthogonal transformation and finally a scaling operation (Hyvarinen et al., 2001, Section 6.34) to ‘rotate’ the whitened data into a set of coordinates where the sources are independent <em>and</em> decorrelated, and then appropriately scale them for the geometry of the sources’ priors.
+Whitening on its own is not sufficient for ICA – having no correlation between sources’ aggregate posteriors is not the same as those sources being statistically independent.
+Put another way, two sources can be uncorrelated <em>and</em> dependent.</p>
+
+<p>So we can write the linear ICA unmixing matrix as this sequence of linear operations</p>
+
+\[\begin{equation}
+\v{A}^+ = \v{\Phi R}\v{W}
+\label{eq:classic_ica_unmix}
+\end{equation}\]
+
+<p>where \(\v{W}\in\mathbb{R}^{d_s\times d_x}\) is our whitening matrix, \(\v{R}\in\mathbb{R}^{d_s\times d_s}\) is an orthogonal matrix and \(\v{\Phi}\in\mathbb{R}^{d_s}\) is a diagonal matrix.</p>
+
+<p>We can show what these parts of the operation do in this figure.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Linear ICA Unmixing, Visualised</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/ICASeq.png#center" alt="Linear ICA Unmixing" height="220px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">The Unmixing process of Eq \eqref{eq:classic_ica_unmix} visualised for a 2D dataset.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Matrices that can be factored this way are known (slightly confusingly) as <em>decorrelating matrices</em>.
+The optimum unmixing matrices in Linear ICA are in this family, given enough data (Everson &amp; Roberts, 1999).
+We would like to leverage these ideas in thinking about how we can be best choose our unmixing matrix within our Bijecta model.
+In overall effect, our combination of a flow and a linear operation has to achieve philosophically similar results to the purely-linear case, but 1) do so while handling non-linearly-mixed data and 2) while actually aiming to have the linear unmixing be <em>fixed</em>.</p>
+
+<p>Our aim to merely whiten in the unmixing matrix, and off-load the work that, in the linear case, is done by the square matrix \(\v R\) and scaling \(\v \Phi\), to the powerful flow in our model – but doing these jobs ahead of the whitening operation.
+The flow will learn to give representation that are a simple whitening operation from being unmixing – with statistical independence rewarded by the \(\KL\) term in the objective Eq \(\eqref{eq:total_var_objective}\).</p>
+
+<p>Again, we can give a visual representation of our aim here.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Bijecta Unmixing, Visualised</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/BIJSeq.png#center" alt="Bijecta Unmixing" height="220px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">The Unmixing process of Bijecta visualised for 2D a dataset.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Now, in Linear ICA we construct the whitening matrix \(\v W\) using Singular Value Decomposition LINK.
+This won’t suit us – after all we want our method to be data-agnostic so we can construct \(\v{A}^+\) with no data dependency.</p>
+
+<p>(Of course in the linear case you just have to do this once, simply for your observed dataset, so doing SVD isn’t that big a deal.
+For us, however, we are acting on the output of the flow.
+So the equivalent of the ‘data matrix’ from the perspective of our linear model is our whole dataset fed through the current instance of the flow [\(\v Z=f^{-1}_\theta(\v X)\)] which changes after every gradient update to \(\theta\).
+So if we were to embark on an SVD-whitening approach here, we would have to perform SVD after every update, and backpropagate through the procedure as well.
+The instability and overhead associated with this are exactly the kind of thing we are trying to avoid – hence having a fixed unmixing matrix.)</p>
+
+<p>There is a neat way to achieve approximate whitening in a way that doesn’t depend on the data at all.
+This is possible using <em>sketching</em>, also known (more informatively) as ‘random projections’.
+Remarkably, if we sample the elements of a matrix iid from certain (simple) uni-variate distributions, then the resulting matrix is an approximate whitening matrix – see the full paper for theory on this.</p>
+
+<p>A particularly simple sketching matrix is that of Achlioptas (2003), where each entry is \(\pm1\) with equal probability – and multiplied by an overall scaling to preserve distances in the projected space.</p>
+
+<p>This completes our definition of <em>Bijecta</em>, \(\v{A}^+\) is an Achlioptas sketching matrix – now we get to set it loose on some datasets and see how it performs.</p>
+
+<h2 id="bijecta-experiments">Bijecta Experiments</h2>
+
+<p>First, we can check how well this does on a problem that breaks Linear ICA.
+We will stick with dSprites, but instead of having the latent sources modulate the <em>intensity</em> of sprites we can use 2 latents to modulate the \(x, y\) position of a sprite in the field of view.
+The position of the sprite is generated by sampling \(x\) and \(y\) each uniformly over the image and then inserting it – so \(x,y\) position, or a rotation thereof, are the true, underlying latent variables that explain this data.</p>
+
+<p>And of course this is fundamentally an <em>affine</em> mixing procedure, not linear – so linear ICA is not an appropriate model.</p>
+
+<p>We train both VAEs and Bijectas with \(\v z \in \mathbb{R}^2\), both with priors appropriate for performing ICA.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Affine Unmixing</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/bij_dsp.png#center" alt="Unmixing" height="200px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Affine Unmixing using Bijecta. We successfully ‘disentangle’ the \(x,y\) positions of a dSprites sprite in an image, obtaining the true underlying latents. Modulating the learnt latent variables leads to clean and consistent changes in the displacement of the sprite. Note that a VAE with an ICA-appropriate prior doesn’t learn the true latents. For full details of our implementation see <a href="https://arxiv.org/abs/2002.07766">our paper</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Clearly Bijecta has learnt the appropriate representation – traversing the values of \(\v s\) produces neat, consistent, smooth changes in the placement of the generated sprite – unlike the VAE.</p>
+
+<p>We can also apply this model to standard machine learning datasets.
+We experiment on CelebA, and benchmark again against disentangling VAEs, as we might hope that these methods work here.
+So in addition to a VAE with Laplace priors, we also train \(\beta\)-TCVAEs – during training the vanilla ELBO has added to it an up-weighted total correlation term for the aggregate posterior.</p>
+
+<p>We measure the total correlation of the resulting aggregate posteriors – after all mutual independence between latent representations is a necessary requirement for a successful non-linear ICA algorithm.
+All models were trained with 32 dimensional latent variables, and all VAEs use the
+same architecture and training as Chen et al. (2018).
+(This test is also particularly tilted towards rewarding our \(\beta\)-TCVAE baselines, which after all <em>directly penalises exactly this quantity during training</em>.)</p>
+
+<p>We find that Bijecta achieves much lower TC values:</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td> </td>
+      <td>Laplace-VAE</td>
+      <td>\(\beta\)-TCVAE</td>
+      <td>Bijecta</td>
+    </tr>
+    <tr>
+      <td><em><strong>TC</strong></em>:</td>
+      <td>106.7 ± 0.9</td>
+      <td>55.7 ± 0.1</td>
+      <td><strong>13.1 ± 0.4</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Here we measure the
+source separation of different models on CelebA:
+the TC of the validation set embeddings in the latent space of: Laplace prior VAEs, β-TCVAEs
+(β = 15), and Bijecta with a Laplace prior (± indicates
+the standard deviation over 2 runs).</p>
+
+<p>This is all pretty nice.
+As a final test, we try to measure how much the Bijecta training procedure compresses information into a low dimensional subspace in \(\mathcal{Z}\), ready to then be extracted by \(\v A^+\).
+We compare this to when training the flow model with just a standard base distribution.
+We can measure the concentration into a subspace by how much of the variance in \(\mathcal{Z}\) we can explain as we build up an orthogonal basis in that space.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Spectra of \(\mathcal{Z}\) representations for Flows and Bijecta, on F-MNIST and CIFAR-10</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><img src="/images/ica/spectra.png#center" alt="Spectra" height="150px" /></td>
+    </tr>
+    <tr>
+      <td style="text-align: center">Explained variance plots for the embedding in \(\mathcal{Z}\), as measured by the sums of the eigenvalues of the covariance matrix of the embeddings, for both our Bijecta model and for an RQS model of equivalent size trained with a Laplace base distribution. For both Fashion-MNIST (left) and CIFAR 10 (right) datasets we see that the Bijecta model has learned a compressive flow, where most of the variance can be explained by only a few linear projections. The shaded region denotes the first 64 dimensions, corresponding to the size of the target source embedding \(\mathcal{S}\).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>This shows that Bijecta is computing representations that are easy to compress with a simple non-square whitening transform without losing much in the process, unlike vanilla RQS flows</p>
+
+<p>Overall, we think this is a fun approach, pairing powerful flows with (partially) fixed linear models.
+<a href="https://arxiv.org/abs/2002.07766">Check out the full paper</a> for more experiments and for the more technical aspects of the idea.</p>
+
+<h4 id="references">References</h4>
+
+<p><strong>Dimitris Achlioptas</strong>. <em>Database-friendly random projections: Johnson-Lindenstrauss with binary coins</em>. In Journal of Computer and System Sciences, volume 66 (pp. 671–687), 2003.</p>
+
+<p><strong>Jean-Francois Cardoso</strong>. <em>Infomax and Maximum Likelihood for Blind Source Separation</em>. IEEE Letters on Signal Processing, 4, 112–114, 1997.</p>
+
+<p><strong>Ricky T Q Chen, Xuechen Li, Roger Grosse, and David Duvenaud</strong>. <em>Isolating Sources of Disentanglement in Variational Autoencoders</em>. (arXiv:1802.04942) In NeurIPS, 2018.</p>
+
+<p><strong>Gustavo Deco, Wilfried Brauer</strong>. Higher Order Statistical Decorrelation without Information Loss. In NeurIPS, 1994.</p>
+
+<p><strong>Laurent Dinh, David Krueger, and Yoshua Bengio</strong>. <em>NICE: Non-linear Independent Components Estimation</em>. In ICLR, 2015.</p>
+
+<p><strong>Conor Durkan, Artur Bekasov, Iain Murray, George Papamakarios</strong>. <em>Neural Spline Flows</em>. In NeurIPS, 2019.</p>
+
+<p><strong>Richard Everson &amp; Stephen J Roberts</strong>. <em>Independent Component Analysis: A Flexible Nonlinearity and Decorrelating Manifold Approach</em>. Neural Computation, 11(8), 1957–83, 1999.</p>
+
+<p><strong>Richard Everson &amp; Stephen J Roberts</strong>. <em>Independent Component Analysis</em>. Cambridge University Press., 2001.</p>
+
+<p><strong>Aapo Hyvärinen, Juha Karhunen, and Erkki Oja</strong>. <em>Independent Component Analysis</em>. John Wiley, 2001.</p>
+
+<p><strong>Diederik P Kingma and Max Welling</strong>. <em>Auto-encoding Variational Bayes</em>. (arXiv:1312.6114) In ICLR, 2014</p>
+
+<p><strong>Francesco Locatello, Stefan Bauer, Mario Lucic, Gunnar Rätsch, Sylvain Gelly, Bernhard Schölkopf and Olivier Bachem</strong>. <em>Challenging common assumptions in the unsupervised learning of disentangled representations</em>. (arXiv:1811.12359) in ICML, 2019</p>
+
+<p><strong>David J C Mackay</strong>. <em>Maximum Likelihood and Covariant Algorithms for Independent Component Analysis</em>. Technical report, University of Cambridge, 1996.</p>
+
+<p><strong>Lucas Parra,Gustavo Deco, and Stefan Miesbach</strong>. <em>Redundancy reduction with information-preserving nonlinear maps</em>. Network: Computation in Neural Systems, 6(1), 61–72. 1995.</p>
+
+<p><strong>Danilo Jimenez Rezende, Shakir Mohamed, and Daan Wierstra</strong>. <em>Stochastic Backpropagation and Approximate Inference in Deep Generative Models</em>. (arXiv:1401.4082) In ICML, 2014</p>
+
+<p><strong>Michal Rolinek, Dominik Zietlow,and Georg Martius</strong>. <em>Variational Autoencoders Pursue PCA Directions (by Accident)</em>. (arXiv:1812.06775) In CVPR, 2019</p>
+
+<p><strong>Satosi Watanabe</strong>. <em>Information Theoretical Analysis of Multivariate Correlation</em>. IBM Journal of Research and Development, 4(1):66–82, 1960</p>
+<div class="footnotes" role="doc-endnotes">
+  <ol>
+    <li id="fn:1">
+      <p>Admittedly this is an approximation – maybe <em>wearing sunglasses</em>, being <em>young</em> and <em>smiling</em> are in fact interdependent, but hopefully the correspondence is weak. If wearing sunglasses and smiling, say, really did strongly tend to go together in some way, then a model of this type <em>would</em> learn to lump them together as a single <em>wearing sunglasses while smiling</em> variable. <a href="#fnref:1" class="reversefootnote" role="doc-backlink">&#8617;</a></p>
+    </li>
+  </ol>
+</div>
+
+  <a class="back-link" href="/blog/">← All writing</a>
+</article>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>

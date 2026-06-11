@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Attention Backward Pass · Matthew Willetts</title>
+  <meta name="description" content="Machine learning researcher & engineer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <article class="post note">
+      <p class="note-kicker"><a href="/notes/">Notes</a></p>
+      <h1>Attention Backward Pass</h1>
+      <p class="note-meta">
+        Matthew Willetts, with assistance from Codex and Claude
+        <span class="sep">·</span>v0.3
+        <span class="sep">·</span>June 2026
+      </p>
+      
+        <p class="note-links">
+          <a href="/docs/notes/attention-backward.pdf">PDF</a>
+          
+        </p>
+      
+      <p>Self-attention forward and backward, every step in index notation, with explicit Kronecker-delta bookkeeping.</p>
+
+<h2 id="setup">Setup</h2>
+
+<p>Let \(i, j \in [T]\) be sequence positions (query and key), \(k \in [d]\) the head dimension, \(p \in [d_v]\) the value dimension. Inputs \(Q, K \in \mathbb{R}^{T \times d}\), \(V \in \mathbb{R}^{T \times d_v}\). Given: \(G_{ip} := \partial L / \partial O_{ip}\).</p>
+
+<p><strong>Forward.</strong></p>
+
+\[S_{ij} = \frac{1}{\sqrt{d}}\sum_k Q_{ik} K_{jk}, \quad A_{ij} = \frac{\exp S_{ij}}{\sum_l \exp S_{il}}, \quad O_{ip} = \sum_j A_{ij} V_{jp}.\]
+
+<h2 id="index-convention">Index convention</h2>
+
+<p>When applying the chain rule, write the full sum over upstream indices using fresh <strong>dummy</strong> labels, distinct from the indices on the LHS. The derivative \(\partial M_{ab}/\partial M_{jp}\) of a matrix entry with respect to another entry of the same matrix is \(\delta_{aj}\delta_{bp}\) — one delta per index slot. Each delta collapses one summation. Everything below is tracking where the deltas appear and which sums they collapse.</p>
+
+<hr />
+
+<h2 id="step-1--partial-l--partial-v-brute-force">Step 1 — \(\partial L / \partial V\) (brute force)</h2>
+
+<p>\(L\) depends on \(V_{jp}\) only through \(O\). Write the full chain rule with dummy indices \(a\) (output position) and \(b\) (output dimension):</p>
+
+\[\frac{\partial L}{\partial V_{jp}} = \sum_{a, b}\frac{\partial L}{\partial O_{ab}}\frac{\partial O_{ab}}{\partial V_{jp}} = \sum_{a, b} G_{ab}\frac{\partial O_{ab}}{\partial V_{jp}}.\]
+
+<p>Now the forward equation, with its own dummy summation index \(c\):</p>
+
+\[O_{ab} = \sum_c A_{ac} V_{cb}.\]
+
+<p>To compute \(\partial O_{ab}/\partial V_{jp}\), two sub-steps. First, pull the derivative inside the sum. Since \(A\) depends only on \(Q\) and \(K\) (not on \(V\)), the factors \(A_{ac}\) are constants w.r.t. \(V\):</p>
+
+\[\frac{\partial O_{ab}}{\partial V_{jp}} = \frac{\partial}{\partial V_{jp}}\!\left[\sum_c A_{ac}\,V_{cb}\right] = \sum_c A_{ac}\,\frac{\partial V_{cb}}{\partial V_{jp}}.\]
+
+<p>Second, the derivative of one entry of \(V\) w.r.t. another. Entries of \(V\) are algebraically independent, so</p>
+
+\[\frac{\partial V_{cb}}{\partial V_{jp}} = \delta_{cj}\,\delta_{bp}\]
+
+<p>— one delta per index slot: the position indices \(c\) and \(j\) must match, and the dimension indices \(b\) and \(p\) must match. Combining:</p>
+
+\[\frac{\partial O_{ab}}{\partial V_{jp}} = \sum_c A_{ac}\,\delta_{cj}\,\delta_{bp}.\]
+
+<p>The \(\delta_{cj}\) collapses the \(c\)-sum, surviving only \(c = j\):</p>
+
+\[\frac{\partial O_{ab}}{\partial V_{jp}} = A_{aj}\,\delta_{bp}.\]
+
+<p>Substitute back:</p>
+
+\[\frac{\partial L}{\partial V_{jp}} = \sum_{a, b} G_{ab}\,A_{aj}\,\delta_{bp}.\]
+
+<p>Now \(\delta_{bp}\) collapses the \(b\)-sum, surviving only \(b = p\):</p>
+
+\[\frac{\partial L}{\partial V_{jp}} = \sum_a G_{ap}\,A_{aj}.\]
+
+<p>Relabel the surviving dummy \(a \to i\) (purely cosmetic, makes it match the rest of the notes):</p>
+
+\[\boxed{\frac{\partial L}{\partial V_{jp}} = \sum_i G_{ip}\,A_{ij}.}\]
+
+<p><strong>Reading the result.</strong> The sum over \(i\) is “what survived” from the dummy-output-position sum: every query \(i\) contributes to \(\partial L/\partial V_{jp}\) through how much it attended to position \(j\) (the factor \(A_{ij}\)). The \(p\) index “just passes through” because \(\delta_{bp}\) killed the dummy-output-dimension sum — value dimensions don’t mix during attention.</p>
+
+<hr />
+
+<h2 id="step-2--partial-l--partial-a">Step 2 — \(\partial L / \partial A\)</h2>
+
+<p>Same chain rule, same forward equation \(O_{ab} = \sum_c A_{ac}V_{cb}\). Differentiate \(O_{ab}\) w.r.t. \(A_{ij}\) in two sub-steps. First, pull the derivative inside the sum — \(V\) doesn’t depend on \(A\):</p>
+
+\[\frac{\partial O_{ab}}{\partial A_{ij}} = \frac{\partial}{\partial A_{ij}}\!\left[\sum_c A_{ac}V_{cb}\right] = \sum_c V_{cb}\,\frac{\partial A_{ac}}{\partial A_{ij}}.\]
+
+<p>Second, the entry-vs-entry derivative gives two deltas:</p>
+
+\[\frac{\partial A_{ac}}{\partial A_{ij}} = \delta_{ai}\,\delta_{cj}.\]
+
+<p>Combining:</p>
+
+\[\frac{\partial O_{ab}}{\partial A_{ij}} = \sum_c V_{cb}\,\delta_{ai}\,\delta_{cj} = V_{jb}\,\delta_{ai}.\]
+
+<p>The \(\delta_{cj}\) collapsed the \(c\)-sum; \(\delta_{ai}\) remains, ready to collapse the \(a\)-sum upstream. Substitute into the chain rule for \(L\):</p>
+
+\[\frac{\partial L}{\partial A_{ij}} = \sum_{a, b} G_{ab}\,V_{jb}\,\delta_{ai} = \sum_b G_{ib}\,V_{jb}.\]
+
+<p>Relabel \(b \to p\) to match notation:</p>
+
+\[D_{ij} := \frac{\partial L}{\partial A_{ij}} = \sum_p G_{ip}\,V_{jp}.\]
+
+<p>Here the surviving sum is over \(p\) (the output dimension), because the position index was killed by \(\delta_{ai}\). Mirror image of Step 1: there it was the position sum that survived and the dimension delta that killed.</p>
+
+<hr />
+
+<h2 id="step-3--partial-l--partial-s-through-the-row-wise-softmax">Step 3 — \(\partial L / \partial S\) through the row-wise softmax</h2>
+
+<p>Chain rule from \(A\) to \(S\), with dummies \(a, c\):</p>
+
+\[\frac{\partial L}{\partial S_{ik}} = \sum_{a, c} D_{ac}\,\frac{\partial A_{ac}}{\partial S_{ik}}.\]
+
+<p>Now the softmax Jacobian. Write \(A_{ac} = e^{S_{ac}}/Z_a\) with \(Z_a := \sum_l e^{S_{al}}\). Apply the quotient rule, taking each derivative explicitly.</p>
+
+<p>The numerator: \(\partial e^{S_{ac}}/\partial S_{ik} = e^{S_{ac}}\,(\delta_{ai}\,\delta_{ck})\) — the chain rule through \(\exp\) gives the function back, times the derivative of its argument \(S_{ac}\) w.r.t. \(S_{ik}\), which is two deltas (one per index slot).</p>
+
+<p>The denominator (with its own dummy summation \(l\)):</p>
+
+\[\frac{\partial Z_a}{\partial S_{ik}} = \frac{\partial}{\partial S_{ik}}\sum_l e^{S_{al}} = \sum_l e^{S_{al}}\,\delta_{ai}\,\delta_{lk} = e^{S_{ak}}\,\delta_{ai}\]
+
+<p>— the \(\delta_{lk}\) collapses the \(l\)-sum.</p>
+
+<p>Quotient rule:</p>
+
+\[\frac{\partial A_{ac}}{\partial S_{ik}} = \frac{e^{S_{ac}}\,\delta_{ai}\,\delta_{ck}\,Z_a - e^{S_{ac}}\,e^{S_{ak}}\,\delta_{ai}}{Z_a^2} = \delta_{ai}\!\left[\frac{e^{S_{ac}}}{Z_a}\delta_{ck} - \frac{e^{S_{ac}}}{Z_a}\frac{e^{S_{ak}}}{Z_a}\right] = \delta_{ai}\,A_{ac}(\delta_{ck} - A_{ak}).\]
+
+<p>The factored-out \(\delta_{ai}\) encodes “rows are independent” — \(Z_a\) depends only on \(S_{a\cdot}\), so \(S_{ik}\) affects \(A_{ac}\) only if \(i = a\).</p>
+
+<p>Substitute:</p>
+
+\[\frac{\partial L}{\partial S_{ik}} = \sum_{a, c} D_{ac}\,\delta_{ai}\,A_{ac}(\delta_{ck} - A_{ak}) = \sum_c D_{ic}\,A_{ic}(\delta_{ck} - A_{ik}).\]
+
+<p>The \(\delta_{ai}\) killed the \(a\)-sum (surviving \(a = i\)). Now split the parenthesis:</p>
+
+\[\frac{\partial L}{\partial S_{ik}} = \sum_c D_{ic}\,A_{ic}\,\delta_{ck} \;-\; A_{ik}\sum_c D_{ic}\,A_{ic}.\]
+
+<p>The \(\delta_{ck}\) in the first term collapses the \(c\)-sum (surviving \(c = k\)): \(D_{ik}\,A_{ik}\).</p>
+
+<p>The second term has no delta; the \(c\)-sum stays. Define</p>
+
+\[r_i := \sum_c D_{ic}\,A_{ic}.\]
+
+<p>Then</p>
+
+\[\boxed{\frac{\partial L}{\partial S_{ik}} = A_{ik}\big(D_{ik} - r_i\big).}\]
+
+<p><strong>Simplifying \(r_i\) further.</strong> Plug in \(D_{ic} = \sum_p G_{ip} V_{cp}\):</p>
+
+\[r_i = \sum_c A_{ic}\sum_p G_{ip} V_{cp} = \sum_p G_{ip}\sum_c A_{ic} V_{cp} = \sum_p G_{ip}\, O_{ip}.\]
+
+<p>So \(r_i\) is the inner product of the row’s incoming gradient with the row’s output. Doesn’t need \(D\) materialised.</p>
+
+<h3 id="centering-identity-sanity-check">Centering identity (sanity check)</h3>
+
+<p>Sum the boxed equation over \(k\):</p>
+
+\[\sum_k \frac{\partial L}{\partial S_{ik}} = \sum_k A_{ik}D_{ik} - r_i\sum_k A_{ik} = r_i - r_i \cdot 1 = 0.\]
+
+<p>The gradient in \(S\) is <strong>zero-mean per row</strong>. Physically, shifting all logits in a row by the same constant doesn’t change the softmax output, so the gradient must have no component in the all-ones direction within each row. Same flavour as the LayerNorm centering identity.</p>
+
+<hr />
+
+<h2 id="step-4--partial-l--partial-q-and-partial-l--partial-k-through-the-score">Step 4 — \(\partial L / \partial Q\) and \(\partial L / \partial K\) through the score</h2>
+
+<p>Chain rule from \(S\) to \(Q\), with dummies \(a, b\):</p>
+
+\[\frac{\partial L}{\partial Q_{ik}} = \sum_{a, b}\frac{\partial L}{\partial S_{ab}}\frac{\partial S_{ab}}{\partial Q_{ik}}.\]
+
+<p>Forward equation with dummy \(c\):</p>
+
+\[S_{ab} = \frac{1}{\sqrt{d}}\sum_c Q_{ac} K_{bc}.\]
+
+<p>Differentiate w.r.t. \(Q_{ik}\) in two sub-steps. First, pull the derivative inside the sum — \(K\) doesn’t depend on \(Q\), so \(K_{bc}\) is constant:</p>
+
+\[\frac{\partial S_{ab}}{\partial Q_{ik}} = \frac{1}{\sqrt{d}}\sum_c K_{bc}\,\frac{\partial Q_{ac}}{\partial Q_{ik}}.\]
+
+<p>Second, the entry-vs-entry derivative:</p>
+
+\[\frac{\partial Q_{ac}}{\partial Q_{ik}} = \delta_{ai}\,\delta_{ck}.\]
+
+<p>Combine:</p>
+
+\[\frac{\partial S_{ab}}{\partial Q_{ik}} = \frac{1}{\sqrt{d}}\sum_c K_{bc}\,\delta_{ai}\,\delta_{ck} = \frac{1}{\sqrt{d}}\,\delta_{ai}\,K_{bk}.\]
+
+<p>The \(\delta_{ck}\) killed the \(c\)-sum; \(\delta_{ai}\) will kill the \(a\)-sum upstream. Substitute:</p>
+
+\[\frac{\partial L}{\partial Q_{ik}} = \frac{1}{\sqrt{d}}\sum_{a, b}\frac{\partial L}{\partial S_{ab}}\,\delta_{ai}\,K_{bk} = \frac{1}{\sqrt{d}}\sum_b\frac{\partial L}{\partial S_{ib}}\,K_{bk}.\]
+
+<p>Relabel \(b \to j\):</p>
+
+\[\frac{\partial L}{\partial Q_{ik}} = \frac{1}{\sqrt{d}}\sum_j\frac{\partial L}{\partial S_{ij}}\,K_{jk} = \frac{1}{\sqrt{d}}\sum_j A_{ij}(D_{ij} - r_i)\,K_{jk}.\]
+
+<p>For \(K\): differentiate the same forward equation w.r.t. \(K_{jk}\). Pull the derivative through the sum (\(Q\) is constant w.r.t. \(K\)), then apply \(\partial K_{bc}/\partial K_{jk} = \delta_{bj}\,\delta_{ck}\):</p>
+
+\[\frac{\partial S_{ab}}{\partial K_{jk}} = \frac{1}{\sqrt{d}}\sum_c Q_{ac}\,\delta_{bj}\,\delta_{ck} = \frac{1}{\sqrt{d}}\,\delta_{bj}\,Q_{ak}.\]
+
+<p>Symmetric to \(Q\)’s case: \(\delta_{ck}\) killed the \(c\)-sum, and \(\delta_{bj}\) will kill the \(b\)-sum upstream. Substitute:</p>
+
+\[\frac{\partial L}{\partial K_{jk}} = \frac{1}{\sqrt{d}}\sum_{a, b}\frac{\partial L}{\partial S_{ab}}\,\delta_{bj}\,Q_{ak} = \frac{1}{\sqrt{d}}\sum_a\frac{\partial L}{\partial S_{aj}}\,Q_{ak}.\]
+
+<p>Relabel \(a \to i\):</p>
+
+\[\frac{\partial L}{\partial K_{jk}} = \frac{1}{\sqrt{d}}\sum_i\frac{\partial L}{\partial S_{ij}}\,Q_{ik} = \frac{1}{\sqrt{d}}\sum_i A_{ij}(D_{ij} - r_i)\,Q_{ik}.\]
+
+<hr />
+
+<h2 id="summary">Summary</h2>
+
+<p>Let \(E_{ij} := A_{ij}(D_{ij} - r_i)\) with \(D_{ij} = \sum_p G_{ip}V_{jp}\) and \(r_i = \sum_p G_{ip}O_{ip}\). Then:</p>
+
+\[\frac{\partial L}{\partial V_{jp}} = \sum_i A_{ij}\,G_{ip}, \quad \frac{\partial L}{\partial Q_{ik}} = \frac{1}{\sqrt{d}}\sum_j E_{ij}\,K_{jk}, \quad \frac{\partial L}{\partial K_{jk}} = \frac{1}{\sqrt{d}}\sum_i E_{ij}\,Q_{ik}.\]
+
+<h3 id="matrix-form-translation">Matrix-form translation</h3>
+
+<p>For the whiteboard:</p>
+
+\[\frac{\partial L}{\partial V} = A^\top G, \quad \frac{\partial L}{\partial A} = G V^\top, \quad E = A \odot (D - r\mathbf{1}^\top),\]
+
+\[\frac{\partial L}{\partial Q} = \frac{E K}{\sqrt{d}}, \quad \frac{\partial L}{\partial K} = \frac{E^\top Q}{\sqrt{d}}.\]
+
+<h3 id="where-the-moving-parts-come-from">Where the moving parts come from</h3>
+
+<ul>
+  <li>Two outer-product-shape gradients (\(\partial L/\partial V\), \(\partial L/\partial A\)) from \(O = AV\) — linear, immediate.</li>
+  <li>One row-local softmax Jacobian step, which reduces to multiply-by-\(A\) then subtract the per-row dot product \(r_i\) — that’s the “softmax minus mean” pattern.</li>
+  <li>Two more outer-product-shape gradients (\(\partial L/\partial Q\), \(\partial L/\partial K\)) from the bilinear score \(S = QK^\top/\sqrt{d}\).</li>
+</ul>
+
+<p>Five contractions total, each \(O(T^2 d)\) — the standard quadratic-in-sequence-length cost. (This is exactly what FlashAttention restructures to avoid materialising \(A\) and \(D\): it precomputes \(r_i = \sum_p G_{ip} O_{ip}\) in a cheap \(O(T d_v)\) pass, then recomputes blocks of \(A\) on the fly.)</p>
+
+<h3 id="where-the-implicit-deltas-show-up">Where the implicit deltas show up</h3>
+
+<p>Per step, the rule is the same: differentiate a matrix entry w.r.t. another matrix entry to produce a product of one Kronecker delta per index slot, then watch which sums get collapsed. In each of the five contraction steps above:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Step</th>
+      <th>Deltas</th>
+      <th>Each kills</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>\(\partial L/\partial V\)</td>
+      <td>\(\delta_{cj}\,\delta_{bp}\)</td>
+      <td>\(c\)-sum (position match), \(b\)-sum (dim match)</td>
+    </tr>
+    <tr>
+      <td>\(\partial L/\partial A\)</td>
+      <td>\(\delta_{ai}\,\delta_{cj}\)</td>
+      <td>\(a\)-sum (query-row match), \(c\)-sum (key-pos match)</td>
+    </tr>
+    <tr>
+      <td>\(\partial A/\partial S\)</td>
+      <td>\(\delta_{ai}\) + softmax-shape \((\delta_{ck} - A_{ak})\)</td>
+      <td>\(a\)-sum (row-independence)</td>
+    </tr>
+    <tr>
+      <td>\(\partial L/\partial Q\)</td>
+      <td>\(\delta_{ai}\,\delta_{ck}\)</td>
+      <td>\(a\)-sum (query-row match), \(c\)-sum (head-dim match)</td>
+    </tr>
+    <tr>
+      <td>\(\partial L/\partial K\)</td>
+      <td>\(\delta_{bj}\,\delta_{ck}\)</td>
+      <td>\(b\)-sum (key-row match), \(c\)-sum (head-dim match)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The pattern: shared indices on input and output are killed by the position/row deltas; the surviving sum is over the “other dimension” — i.e. the index that gets contracted to form the output.</p>
+
+      <a class="back-link" href="/notes/">← All notes</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>

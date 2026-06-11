@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Direct Preference Optimization · Matthew Willetts</title>
+  <meta name="description" content="Machine learning researcher & engineer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#faf8f1">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="container">
+      <a class="site-name" href="/">Matthew&nbsp;Willetts</a>
+      <div class="site-nav">
+        <a href="/#about">About</a>
+        <a href="/#publications">Papers</a>
+        <a href="/blog/">Writing</a>
+        <a href="/notes/">Notes</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container narrow">
+    <article class="post note">
+      <p class="note-kicker"><a href="/notes/">Notes</a></p>
+      <h1>Direct Preference Optimization</h1>
+      <p class="note-meta">
+        Matthew Willetts, with assistance from Codex and Claude
+        <span class="sep">·</span>v0.4
+        <span class="sep">·</span>June 2026
+      </p>
+      
+        <p class="note-links">
+          <a href="/docs/notes/direct-preference-optimization.pdf">PDF</a>
+          
+        </p>
+      
+      <p>A derivation of DPO, the loss, its semantics, and the family of fixes that came after.</p>
+
+<h2 id="1-the-problem-dpo-solves">1. The problem DPO solves</h2>
+
+<p>Classical RLHF needs four moving parts:</p>
+
+<ol>
+  <li>SFT model (policy initialisation).</li>
+  <li>Reward model trained on preference data.</li>
+  <li>Online rollouts from the policy.</li>
+  <li>PPO-style RL loop using the RM as the reward signal.</li>
+</ol>
+
+<p>DPO collapses (2)–(4) into a single supervised loss on preference data. No reward model, no rollouts, no PPO. Just train the policy directly on the preference pairs you would have used to train the RM.</p>
+
+<p>The cost is real (no online exploration, no separate RM artefact). Even so, a large fraction of modern preference-tuning uses DPO or a DPO derivative.</p>
+
+<h2 id="2-the-standard-rlhf-objective">2. The standard RLHF objective</h2>
+
+<p>Classical PPO-RLHF maximises expected reward minus KL to a frozen reference policy:</p>
+
+\[\max_\pi \; \mathbb{E}_{x \sim D,\, y \sim \pi(\cdot \mid x)}\!\left[r(x, y)\right] - \beta \, D_{KL}\!\left(\pi(\cdot \mid x)\,\|\,\pi_\text{ref}(\cdot \mid x)\right).\]
+
+<p>\(r\) is the learned reward model; \(\pi_\text{ref}\) is the SFT model; \(\beta\) controls how far the policy may drift from the reference.</p>
+
+<p>For a fixed \(r\), this problem has a known <strong>closed-form optimal policy</strong>:</p>
+
+\[\pi^*(y \mid x) = \frac{1}{Z(x)} \pi_\text{ref}(y \mid x) \exp\!\left(\frac{1}{\beta}\, r(x, y)\right),\qquad Z(x) = \sum_y \pi_\text{ref}(y \mid x) \exp(r(x, y)/\beta).\]
+
+<p>The optimal policy is the reference reweighted by an exponential reward, normalised. Standard maximum-entropy result.</p>
+
+<h2 id="3-the-rafailov-inversion-dpos-key-step">3. The Rafailov inversion (DPO’s key step)</h2>
+
+<p>Rearrange the closed-form expression to write \(r\) in terms of \(\pi^*\) and \(\pi_\text{ref}\):</p>
+
+\[r(x, y) = \beta \log \frac{\pi^*(y \mid x)}{\pi_\text{ref}(y \mid x)} + \beta \log Z(x).\]
+
+<p>The reward is now a function of the optimal policy, the reference policy, and the partition function \(Z(x)\) — which depends only on \(x\), not on \(y\).</p>
+
+<p><strong>Plug into Bradley-Terry.</strong> The reward model would have been trained on the likelihood:</p>
+
+\[P(y_w \succ y_l \mid x) = \sigma\!\left(r(x, y_w) - r(x, y_l)\right).\]
+
+<p>Compute the reward <em>difference</em>:</p>
+
+\[r(x, y_w) - r(x, y_l) = \beta \log \frac{\pi^*(y_w \mid x)}{\pi_\text{ref}(y_w \mid x)} - \beta \log \frac{\pi^*(y_l \mid x)}{\pi_\text{ref}(y_l \mid x)} + \underbrace{\beta \log Z(x) - \beta \log Z(x)}_{=\, 0}.\]
+
+<p>The partition function <strong>cancels</strong>, and that cancellation is what makes DPO possible: reward differences are computable from policy and reference log-probs alone, no \(Z(x)\) needed.</p>
+
+<h2 id="4-the-dpo-loss">4. The DPO loss</h2>
+
+<p>Parameterise the policy as \(\pi_\theta\) (the LLM you’re training). The Bradley-Terry likelihood becomes:</p>
+
+\[P(y_w \succ y_l \mid x;\theta) = \sigma\!\left(\beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_\text{ref}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_\text{ref}(y_l \mid x)}\right).\]
+
+<p>The DPO loss is the negative log-likelihood of the observed preferences:</p>
+
+\[\boxed{\;\mathcal{L}_{DPO}(\theta) = -\,\mathbb{E}_{(x, y_w, y_l) \sim D}\left[\log \sigma\!\left(\beta\, h_\theta(x, y_w, y_l)\right)\right],\;}\]
+
+<p>where</p>
+
+\[h_\theta(x, y_w, y_l) = \underbrace{\left[\log \pi_\theta(y_w \mid x) - \log \pi_\text{ref}(y_w \mid x)\right]}_{\text{chosen log-ratio}} - \underbrace{\left[\log \pi_\theta(y_l \mid x) - \log \pi_\text{ref}(y_l \mid x)\right]}_{\text{rejected log-ratio}}.\]
+
+<p>Operationally, the loss is a log-sigmoid of a \(\beta\)-weighted difference of log-ratios.</p>
+
+<h2 id="5-what-the-loss-is-doing-intuitively">5. What the loss is doing intuitively</h2>
+
+<p>The argument of \(\log \sigma\) is positive when the policy assigns <em>more</em> probability than the reference to the chosen response, relative to the rejected one. Minimising the loss pushes the chosen log-ratio up and the rejected log-ratio down — i.e., reshape the policy so it prefers chosen over rejected by more than the reference does.</p>
+
+<p>The reference acts as an anchor: you’re not asked to maximise chosen probability absolutely, only to increase the chosen-vs-rejected gap beyond what the reference shows. This anchoring is what corresponds to the KL constraint in the original RL objective.</p>
+
+<h2 id="6-the-reference-models-role">6. The reference model’s role</h2>
+
+<p>\(\pi_\text{ref}\) is a frozen LLM, typically the SFT checkpoint. Its log-probs \(\log \pi_\text{ref}(y \mid x)\) are computed once per training example and <strong>detached</strong> — gradients should never flow through the reference, since it’s defining the anchor not being optimised.</p>
+
+<p>In code:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ref_chosen_logp</span> <span class="o">=</span> <span class="n">ref_chosen_logp</span><span class="p">.</span><span class="nf">detach</span><span class="p">()</span>
+<span class="n">ref_rejected_logp</span> <span class="o">=</span> <span class="n">ref_rejected_logp</span><span class="p">.</span><span class="nf">detach</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Forgetting this detach is one of the easiest ways to make the loss look numerically plausible while training the wrong object.</p>
+
+<p>In memory terms, training DPO requires <strong>two LLMs</strong>: the policy (\(\pi_\theta\)) being updated, and the frozen reference (\(\pi_\text{ref}\)) for the anchor (and since the reference is frozen, its log-probs can be precomputed offline, dropping it to one). Classical PPO-RLHF carries four: policy, reference, reward model, and value model. DPO halves it.</p>
+
+<h2 id="7-the-β-parameter">7. The β parameter</h2>
+
+<p>\(\beta\) is the same temperature as in the original KL-constrained RL objective — large \(\beta\) corresponds to a strong KL constraint (policy stays close to reference); small \(\beta\) corresponds to a weak constraint (policy free to drift).</p>
+
+<p>Typical values: <strong>0.01 – 0.5</strong>. Sensitive to dataset and model scale. In practice, the effective \(\beta\) for matching PPO-RLHF behaviour is often smaller than papers’ default of \(0.1\) — model size matters.</p>
+
+<h2 id="8-implementation">8. Implementation</h2>
+
+<p>The standard PyTorch shape:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">torch.nn.functional</span> <span class="k">as</span> <span class="n">F</span>
+
+<span class="k">def</span> <span class="nf">dpo_loss</span><span class="p">(</span>
+    <span class="n">chosen_logp</span><span class="p">,</span>        <span class="c1"># (B,)  Σ_t log π_θ(y_w,t | x, y_w,&lt;t)
+</span>    <span class="n">rejected_logp</span><span class="p">,</span>      <span class="c1"># (B,)  Σ_t log π_θ(y_l,t | x, y_l,&lt;t)
+</span>    <span class="n">ref_chosen_logp</span><span class="p">,</span>    <span class="c1"># (B,)  same under π_ref — frozen
+</span>    <span class="n">ref_rejected_logp</span><span class="p">,</span>  <span class="c1"># (B,)  same — frozen
+</span>    <span class="n">beta</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">ref_chosen_logp</span> <span class="o">=</span> <span class="n">ref_chosen_logp</span><span class="p">.</span><span class="nf">detach</span><span class="p">()</span>
+    <span class="n">ref_rejected_logp</span> <span class="o">=</span> <span class="n">ref_rejected_logp</span><span class="p">.</span><span class="nf">detach</span><span class="p">()</span>
+
+    <span class="n">chosen_log_ratio</span> <span class="o">=</span> <span class="n">chosen_logp</span> <span class="o">-</span> <span class="n">ref_chosen_logp</span>
+    <span class="n">rejected_log_ratio</span> <span class="o">=</span> <span class="n">rejected_logp</span> <span class="o">-</span> <span class="n">ref_rejected_logp</span>
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="p">(</span><span class="n">chosen_log_ratio</span> <span class="o">-</span> <span class="n">rejected_log_ratio</span><span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">F</span><span class="p">.</span><span class="nf">logsigmoid</span><span class="p">(</span><span class="n">logits</span><span class="p">).</span><span class="nf">mean</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Each <code class="language-plaintext highlighter-rouge">*_logp</code> is the <em>summed</em> log-probability of the full response under the relevant model (summed over response tokens, optionally with a response mask handling padding). Computing those summed log-probs is where most of the practical engineering goes — applying the response mask correctly, handling prompt vs response tokens, batching efficiently — but the loss itself is one <code class="language-plaintext highlighter-rouge">logsigmoid</code> call.</p>
+
+<h2 id="9-known-issues-with-vanilla-dpo">9. Known issues with vanilla DPO</h2>
+
+<p>Vanilla DPO has well-documented failure modes. Each motivated a successor algorithm.</p>
+
+<p><strong>Length bias.</strong> Chosen responses tend to be longer than rejected ones in many preference datasets. DPO’s implicit reward is a sum over tokens, so longer responses give the optimiser more room to inflate the margin. The policy learns to produce longer outputs as a shortcut. Fix: length normalisation (divide log-probs by response length) or use SimPO.</p>
+
+<p><strong>Reduction to base distribution.</strong> As training proceeds, DPO can lower the rejected log-prob much more aggressively than it raises the chosen one. The policy “improves” the loss by pushing rejected mass down, without putting that mass on chosen. End result: distributional drift where overall response quality drops. Fixes include stronger reference regularisation and bounded-margin variants such as IPO.</p>
+
+<p><strong>Sensitivity to reference.</strong> DPO is anchored to \(\pi_\text{ref}\). A weak SFT reference produces a weak DPO policy. The reference is doing a lot of implicit work.</p>
+
+<p><strong>No online exploration.</strong> Pure offline supervised loss. The policy never sees its own rollouts, so it can’t learn from outputs not present in the preference set. PPO with online rollouts can.</p>
+
+<p><strong>Distribution shift.</strong> Preferences were collected on SFT-model outputs. DPO trains a policy that will produce different outputs than SFT. The implicit assumption — “preferences generalise from SFT-distribution to DPO-distribution outputs” — can fail at the tail.</p>
+
+<h2 id="10-the-dpo-family">10. The DPO family</h2>
+
+<p>The post-DPO papers fix one or more of the issues above:</p>
+
+<ul>
+  <li><strong>IPO</strong> (Azar et al. 2023). Identity Preference Optimization. Squared loss instead of log-sigmoid. Prevents the log-ratio from being driven to infinity. Useful when preferences are noisy or systematic biases (e.g., length) are present.</li>
+  <li><strong>KTO</strong> (Ethayarajh et al. 2024). Kahneman-Tversky Optimization. Single-example version — needs only “this output is good/bad” labels, not pairs. Uses prospect-theory utility shape. Practical when only thumbs-up/thumbs-down data is available.</li>
+  <li><strong>ORPO</strong> (Hong et al. 2024). Combines SFT and preference loss in a single training step. Avoids the need for a separate SFT stage. Doesn’t need a reference model.</li>
+  <li><strong>SimPO</strong> (Meng et al. 2024). Simple Preference Optimization. Drops the reference model entirely. Length-normalises log-probs. Practical when you don’t want the memory cost of a second LLM during training. Can outperform vanilla DPO when length effects and reference cost dominate.</li>
+</ul>
+
+<p>Read order if you want depth: <strong>DPO → IPO → KTO → SimPO</strong>. KTO and SimPO are useful next stops because they change different assumptions: paired-vs-unpaired feedback for KTO, and reference-free length-normalised training for SimPO.</p>
+
+<h2 id="11-dpo-vs-ppo-rlhf--the-trade-off">11. DPO vs PPO-RLHF — the trade-off</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th> </th>
+      <th>PPO-RLHF</th>
+      <th>DPO</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Models in memory</td>
+      <td>4 (policy, ref, RM, value)</td>
+      <td>2 (policy, ref; 1 with precomputed ref log-probs)</td>
+    </tr>
+    <tr>
+      <td>Training data</td>
+      <td>preference pairs (for RM) + online rollouts</td>
+      <td>preference pairs only</td>
+    </tr>
+    <tr>
+      <td>Online exploration</td>
+      <td>yes</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td>Reward model artefact</td>
+      <td>yes (reusable)</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <td>Complexity</td>
+      <td>high (RL loop)</td>
+      <td>low (supervised loss)</td>
+    </tr>
+    <tr>
+      <td>Hyperparameter sensitivity</td>
+      <td>many (\(\beta\), \(\epsilon\), K epochs, etc.)</td>
+      <td>few (\(\beta\) mostly)</td>
+    </tr>
+    <tr>
+      <td>Empirical performance</td>
+      <td>strong; harder to tune</td>
+      <td>competitive; sometimes worse on hard tasks</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>DPO is the “supervised approximation” of PPO-RLHF — much simpler, but less able to improve by sampling its own new behaviours. The trade-off is often right for preference tuning; online RL is still the natural tool when exploration against a verifier or live reward is the point.</p>
+
+<h2 id="12-summary">12. Summary</h2>
+
+<p>DPO derives that the optimal policy under KL-constrained RLHF can be parameterised by log-ratios against a reference, and that Bradley-Terry preference likelihoods over such policies have a partition-function-cancelling form, so the policy can be trained directly on preferences with a log-sigmoid loss, with no reward model and no rollouts.</p>
+
+      <a class="back-link" href="/notes/">← All notes</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/MatthewWilletts">GitHub</a><span class="sep">·</span>
+        <a href="https://scholar.google.com/citations?user=cuy1270AAAAJ&hl=en">Scholar</a><span class="sep">·</span>
+        <a href="https://linkedin.com/in/mwilletts">LinkedIn</a><span class="sep">·</span>
+        <a href="https://twitter.com/MatthewWilletts">Twitter</a>
+      </p>
+      <p class="colophon">© 2026 Matthew Willetts</p>
+    </div>
+  </footer>
+</body>
+</html>
